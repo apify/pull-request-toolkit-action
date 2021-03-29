@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: apify/pull-request-toolkit-action
-          ref: refs/tags/v1.0.0
+          ref: refs/tags/v1.0.1
           path: ./.github/actions/pull-request-toolkit-action
 
       - name: run PR toolkit
