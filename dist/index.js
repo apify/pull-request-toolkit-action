@@ -70,10 +70,16 @@ async function fillCurrentMilestone(octokit, pullRequest) {
 async function run() {
     try {
         const repoToken = core.getInput('repo-token');
+        const teamMembers = core.getInput('team-members');
         const octokit = github.getOctokit(repoToken);
+        const teamMemberList = teamMembers ? teamMembers.split(',').map((member) => member.trim()) : [];
         const pullRequest = github.context.payload.pull_request;
         if (!pullRequest) {
             core.setFailed('Action works only for PRs');
+            return;
+        }
+        if (pullRequest.user.login && teamMemberList.length && !teamMemberList.includes(pullRequest.user.login)) {
+            console.log(`User ${pullRequest.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
         const isCreatorAssign = pullRequest.assignees.find((u) => u.login === pullRequest.user.login);
