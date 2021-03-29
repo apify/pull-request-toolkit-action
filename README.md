@@ -1,4 +1,4 @@
-# Pull request toolkit action
+# Pull request toolkit
 
 This action makes PR better for Zenhub integration.
 
