@@ -1,0 +1,10 @@
+name: 'Apify PR toolkit'
+description: 'This action helps to Apify PR be better.'
+author: 'Apify'
+inputs:
+    repo-token:
+        required: true
+        description: 'Repository Github token'
+runs:
+    using: 'node12'
+    main: 'dist/index.js'
