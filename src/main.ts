@@ -12,6 +12,30 @@ async function assignPrCreator(octokit: any, pullRequest: any): Promise<void> {
     console.log('Creator successfully assigned');
 }
 
+export function findMilestone(milestones: any, teamName: string) {
+    const now = new Date();
+    // All open milestones
+    // @ts-ignore
+    const openMilestones = milestones.filter((milestone) => {
+        return milestone.state === 'open'
+            && milestone.due_on && new Date(milestone.due_on) >= now;
+    });
+
+    // Find milestone for the team, if team name was provided
+    let foundMilestone;
+    if (teamName) {
+        const teamNameRegExp = new RegExp(teamName, 'i');
+        // @ts-ignore
+        foundMilestone = openMilestones.find(({ description, title }) => {
+            return title.match(teamNameRegExp)
+                || description.match(teamNameRegExp);
+        });
+    } else if (openMilestones.length) {
+        ([foundMilestone] = openMilestones);
+    }
+    return foundMilestone;
+}
+
 async function fillCurrentMilestone(octokit: any, pullRequest: any, teamName: string): Promise<void> {
     // Assign PR to right sprint milestone
     const { data: milestones } = await octokit.request('GET /repos/{owner}/{repo}/milestones', {
@@ -24,29 +48,7 @@ async function fillCurrentMilestone(octokit: any, pullRequest: any, teamName: st
         return;
     }
 
-    const now = new Date();
-    // All open milestones
-    // @ts-ignore
-    const openMilestones = milestones.filter((milestone) => {
-        return milestone.state === 'open'
-            && milestone.due_on && new Date(milestone.due_on) >= now;
-    });
-
-    console.log(openMilestones)
-
-    // Find milestone for the team, if team name was provided
-    let foundMilestone;
-    if (teamName) {
-        const teamNameRegExp = new RegExp(teamName, 'i');
-        // @ts-ignore
-        foundMilestone = openMilestones.find(({ description, title }) => {
-            console.log({ description, title })
-            return title.match(teamNameRegExp)
-                || description.match(teamNameRegExp);
-        });
-    } else if (openMilestones.length) {
-        ([foundMilestone] = openMilestones);
-    }
+    const foundMilestone = findMilestone(milestones, teamName);
 
     if (!foundMilestone) {
         core.setFailed('Cannot find current sprint milestone!');
