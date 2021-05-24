@@ -1,6 +1,20 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 
+interface Milestone {
+    url: string,
+    id: number,
+    number: number,
+    title: string,
+    description: string,
+    'open_issues': number,
+    'closed_issues': number,
+    state: string,
+    'created_at': string,
+    'updated_at': string,
+    'due_on': string,
+}
+
 async function assignPrCreator(octokit: any, pullRequest: any): Promise<void> {
     // Assign pull request with PR creator
     await octokit.issues.update({
@@ -12,11 +26,10 @@ async function assignPrCreator(octokit: any, pullRequest: any): Promise<void> {
     console.log('Creator successfully assigned');
 }
 
-export function findMilestone(milestones: any, teamName: string) {
+export function findMilestone(milestones: Milestone[], teamName: string) {
     const now = new Date();
     // All open milestones
-    // @ts-ignore
-    const openMilestones = milestones.filter((milestone) => {
+    const openMilestones: Milestone[] = milestones.filter((milestone: Milestone) => {
         return milestone.state === 'open'
             && milestone.due_on && new Date(milestone.due_on) >= now;
     });
@@ -25,11 +38,11 @@ export function findMilestone(milestones: any, teamName: string) {
     let foundMilestone;
     if (teamName) {
         const teamNameRegExp = new RegExp(teamName, 'i');
-        // @ts-ignore
-        foundMilestone = openMilestones.find(({ description, title }) => {
-            return title.match(teamNameRegExp)
-                || description.match(teamNameRegExp);
+        foundMilestone = openMilestones.find((milestone: Milestone) => {
+            return milestone.title.match(teamNameRegExp)
+                || milestone.description.match(teamNameRegExp);
         });
+        if (!foundMilestone) console.log(`Cannot find milestone for "${teamName}" team`);
     } else if (openMilestones.length) {
         ([foundMilestone] = openMilestones);
     }
