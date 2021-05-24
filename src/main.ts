@@ -12,7 +12,7 @@ async function assignPrCreator(octokit: any, pullRequest: any): Promise<void> {
     console.log('Creator successfully assigned');
 }
 
-async function fillCurrentMilestone(octokit: any, pullRequest: any): Promise<void> {
+async function fillCurrentMilestone(octokit: any, pullRequest: any, teamName: string): Promise<void> {
     // Assign PR to right sprint milestone
     const { data: milestones } = await octokit.request('GET /repos/{owner}/{repo}/milestones', {
         owner: github.context.repo.owner,
@@ -25,13 +25,27 @@ async function fillCurrentMilestone(octokit: any, pullRequest: any): Promise<voi
     }
 
     const now = new Date();
+    // All open milestones
     // @ts-ignore
-    const openMilestone = milestones.find((milestone) => {
+    const openMilestones = milestones.filter((milestone) => {
         return milestone.state === 'open'
             && milestone.due_on && new Date(milestone.due_on) >= now;
     });
 
-    if (!openMilestone) {
+    // Find milestone for the team, if team name was provided
+    let foundMilestone;
+    if (teamName) {
+        const teamNameRegExp = new RegExp(teamName, 'i');
+        // @ts-ignore
+        foundMilestone = openMilestones.find(({ description, title }) => {
+            return title.match(teamNameRegExp)
+                || description.match(teamNameRegExp);
+        });
+    } else if (openMilestones.length) {
+        ([foundMilestone] = openMilestones);
+    }
+
+    if (!foundMilestone) {
         core.setFailed('Cannot find current sprint milestone!');
         return;
     }
@@ -40,15 +54,16 @@ async function fillCurrentMilestone(octokit: any, pullRequest: any): Promise<voi
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,
         issue_number: pullRequest.number,
-        milestone: openMilestone.number,
+        milestone: foundMilestone.number,
     });
-    console.log(`Milestone successfully filled with ${openMilestone.title}`);
+    console.log(`Milestone successfully filled with ${foundMilestone.title}`);
 }
 
 async function run(): Promise<void> {
     try {
         const repoToken = core.getInput('repo-token');
         const teamMembers = core.getInput('team-members');
+        const teamName = core.getInput('team-members');
         const octokit = github.getOctokit(repoToken);
 
         const teamMemberList = teamMembers ? teamMembers.split(',').map((member: string) => member.trim()) : [];
@@ -67,7 +82,7 @@ async function run(): Promise<void> {
         // Assign PR to creator of PR
         if (!isCreatorAssign) await assignPrCreator(octokit, pullRequest);
         // Fill milestone if there is any yet.
-        if (!pullRequest.milestone) await fillCurrentMilestone(octokit, pullRequest);
+        if (!pullRequest.milestone) await fillCurrentMilestone(octokit, pullRequest, teamName);
     } catch (error) {
         core.setFailed(error.message);
     }

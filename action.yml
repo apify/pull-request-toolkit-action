@@ -8,6 +8,9 @@ inputs:
     team-members:
         required: false
         description: 'List of Github usernames'
+    team-name:
+        required: false
+        description: 'Name of team'
 runs:
     using: 'node12'
     main: 'dist/index.js'

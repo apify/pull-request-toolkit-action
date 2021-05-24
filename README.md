@@ -9,10 +9,11 @@ This action makes PR better for Zenhub integration.
 
 # Action input
 
-| Name               |                                                                    Description    |                                                     Example | Required |
-| ------------------ | --------------------------------------------------------------------------------  | ----------------------------------------------------------- | -------- |
-| `repo-token`       |                                                           Repository Github token |                                              `github-token` |      yes |
-| `team-members`     | List of Github usernames for members using toolkit (by default everybody included)|                                       `username1,username2` |       no |
+| Name               |                                                                    Description           |                                                     Example | Required |
+| ------------------ | --------------------------------------------------------------------------------         | ----------------------------------------------------------- | -------- |
+| `repo-token`       |                                                           Repository Github token        |                                              `github-token` |      yes |
+| `team-members`     | List of Github usernames for members using toolkit (by default everybody included)       |                                       `username1,username2` |       no |
+| `team-name`        | If name is provide, the milestone will be filter by regexp base on team name.            |                                                  `platform` |       no |
 
 # Example usage
 
