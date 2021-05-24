@@ -32,12 +32,15 @@ async function fillCurrentMilestone(octokit: any, pullRequest: any, teamName: st
             && milestone.due_on && new Date(milestone.due_on) >= now;
     });
 
+    console.log(openMilestones)
+
     // Find milestone for the team, if team name was provided
     let foundMilestone;
     if (teamName) {
         const teamNameRegExp = new RegExp(teamName, 'i');
         // @ts-ignore
         foundMilestone = openMilestones.find(({ description, title }) => {
+            console.log({ description, title })
             return title.match(teamNameRegExp)
                 || description.match(teamNameRegExp);
         });
