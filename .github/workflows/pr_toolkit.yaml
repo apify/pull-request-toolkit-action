@@ -1,0 +1,20 @@
+name: Apify PR toolkit
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  apify-pr-toolkit:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: clone local repository
+        uses: actions/checkout@v2
+
+      - name: run PR toolkit console team
+        uses: ./
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          team-name: Platform
+          team-members: drobnikj
