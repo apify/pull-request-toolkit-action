@@ -3,7 +3,7 @@ name: Apify PR toolkit
 on:
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   apify-pr-toolkit:
