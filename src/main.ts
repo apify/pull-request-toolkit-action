@@ -68,7 +68,7 @@ async function run(): Promise<void> {
     try {
         const repoToken = core.getInput('repo-token');
         const teamMembers = core.getInput('team-members');
-        const teamName = core.getInput('team-members');
+        const teamName = core.getInput('team-name');
         const octokit = github.getOctokit(repoToken);
 
         const teamMemberList = teamMembers ? teamMembers.split(',').map((member: string) => member.trim()) : [];
