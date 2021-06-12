@@ -22,6 +22,7 @@ async function run(): Promise<void> {
             return;
         }
 
+        console.log(typeof process.env.APIFY_SERVICE_ACCOUNT_GITHUB_TOKEN);
         console.log(pullRequestContext);
 
         const childTeams = await octokit.teams.listChildInOrg({
