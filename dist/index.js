@@ -105,6 +105,7 @@ async function run() {
             core.setFailed('Action works only for PRs');
             return;
         }
+        console.log(typeof process.env.APIFY_SERVICE_ACCOUNT_GITHUB_TOKEN);
         console.log(pullRequestContext);
         const childTeams = await octokit.teams.listChildInOrg({
             org: 'apify',
