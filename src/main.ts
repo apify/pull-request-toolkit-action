@@ -22,6 +22,14 @@ async function run(): Promise<void> {
             return;
         }
 
+        console.log(pullRequestContext);
+
+        const childTeams = await octokit.teams.listChildInOrg({
+            org: 'apify',
+            team_slug: 'platform-team',
+        });
+        console.log(childTeams);
+
         const pullRequest = await octokit.rest.pulls.get({
             owner: pullRequestContext.owner,
             repo: pullRequestContext.repo,
