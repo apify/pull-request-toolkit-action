@@ -9,8 +9,8 @@
         "lint": "./node_modules/.bin/eslint ./src --ext .js,.jsx,.ts,.tsx ; tsc --noemit",
         "lint:fix": "./node_modules/.bin/eslint ./src --ext .js,.jsx,.ts,.tsx --fix ; tsc --noemit",
         "package": "ncc build --source-map",
-        "test": "jest",
-        "all": "npm run build && npm run lint && npm run package"
+        "test": "node_modules/jest/bin/jest.js",
+        "all": "npm run build && npm run lint && npm run test && npm run package"
     },
     "keywords": [
         "actions",

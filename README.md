@@ -4,8 +4,8 @@ This action makes PR better for Zenhub integration.
 
 # What it does
 
-- Assign PR to the creator of PR
-- Fill missing milestone with a current milestone for the repository
+- Assigns PR to the creator of PR
+- Fills missing milestone with a current milestone from Zenhub
 
 # Action input
 
