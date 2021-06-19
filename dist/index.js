@@ -145,6 +145,7 @@ async function run() {
             await helpers_1.fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
     }
     catch (error) {
+        console.log(error);
         core.setFailed(error.message);
     }
 }
