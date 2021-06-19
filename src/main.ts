@@ -8,6 +8,9 @@ import {
 
 type Assignee = components['schemas']['simple-user'];
 
+const ORGANIZATION = 'apify';
+const PARENT_TEAM_SLUG = 'platform-team';
+
 async function run(): Promise<void> {
     try {
         const repoToken = core.getInput('repo-token');
@@ -23,24 +26,22 @@ async function run(): Promise<void> {
 
         const teamMemberList = teamMembers ? teamMembers.split(',').map((member: string) => member.trim()) : [];
         const pullRequestContext = github.context.payload.pull_request;
-        if (!pullRequestContext) {
-            core.setFailed('Action works only for PRs');
-            return;
+        if (!pullRequestContext) throw new Error('Action works only for PRs!');
+
+        const { data: childTeams } = await orgOctokit.teams.listChildInOrg({
+            org: ORGANIZATION,
+            team_slug: PARENT_TEAM_SLUG,
+        });
+        if (!childTeams.length) throw new Error('No child teams found!');
+        for (const { slug } of childTeams) {
+            const { data: members } = await orgOctokit.teams.listMembersInOrg({
+                org: ORGANIZATION,
+                team_slug: slug,
+            });
+            console.log(members);
         }
 
-        console.log('fetching teams ....');
-        console.log('fetching teams ....');
-        console.log('fetching teams ....');
-        const childTeams = await orgOctokit.teams.listChildInOrg({
-            org: 'apify',
-            team_slug: 'platform-team',
-        });
-        console.log(childTeams);
-        console.log('done');
-        console.log('done');
-        console.log('done');
-
-        const pullRequest = await repoOctokit.rest.pulls.get({
+        const { data: pullRequest } = await repoOctokit.pulls.get({
             owner: pullRequestContext.owner,
             repo: pullRequestContext.repo,
             pull_number: pullRequestContext.number,

@@ -93,6 +93,8 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__webpack_require__(186));
 const github = __importStar(__webpack_require__(438));
 const helpers_1 = __webpack_require__(8);
+const ORGANIZATION = 'apify';
+const PARENT_TEAM_SLUG = 'platform-team';
 async function run() {
     try {
         const repoToken = core.getInput('repo-token');
@@ -106,22 +108,22 @@ async function run() {
         console.log('ytyyy');
         const teamMemberList = teamMembers ? teamMembers.split(',').map((member) => member.trim()) : [];
         const pullRequestContext = github.context.payload.pull_request;
-        if (!pullRequestContext) {
-            core.setFailed('Action works only for PRs');
-            return;
-        }
-        console.log('fetching teams ....');
-        console.log('fetching teams ....');
-        console.log('fetching teams ....');
-        const childTeams = await orgOctokit.teams.listChildInOrg({
-            org: 'apify',
-            team_slug: 'platform-team',
+        if (!pullRequestContext)
+            throw new Error('Action works only for PRs!');
+        const { data: childTeams } = await orgOctokit.teams.listChildInOrg({
+            org: ORGANIZATION,
+            team_slug: PARENT_TEAM_SLUG,
         });
-        console.log(childTeams);
-        console.log('done');
-        console.log('done');
-        console.log('done');
-        const pullRequest = await repoOctokit.rest.pulls.get({
+        if (!childTeams.length)
+            throw new Error('No child teams found!');
+        for (const { slug } of childTeams) {
+            const { data: members } = await orgOctokit.teams.listMembersInOrg({
+                org: ORGANIZATION,
+                team_slug: slug,
+            });
+            console.log(members);
+        }
+        const { data: pullRequest } = await repoOctokit.pulls.get({
             owner: pullRequestContext.owner,
             repo: pullRequestContext.repo,
             pull_number: pullRequestContext.number,
