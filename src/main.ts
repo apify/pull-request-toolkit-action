@@ -15,6 +15,8 @@ async function run(): Promise<void> {
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
 
+        core.warning('xxxxxx');
+
         // Organization token providing read-only access to the organization.
         const orgToken = core.getInput('org-token');
         const orgOctokit = github.getOctokit(orgToken);
@@ -33,8 +35,6 @@ async function run(): Promise<void> {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
-
-        core.warning('xxxxxx');
 
         const isCreatorAssigned = pullRequestContext.assignees.find((u: Assignee) => u?.login === pullRequestContext.user.login);
         if (!isCreatorAssigned) await assignPrCreator(github.context, repoOctokit, pullRequest);

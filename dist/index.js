@@ -144,6 +144,7 @@ async function run() {
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
+        core.warning('xxxxxx');
         // Organization token providing read-only access to the organization.
         const orgToken = core.getInput('org-token');
         const orgOctokit = github.getOctokit(orgToken);
@@ -160,7 +161,6 @@ async function run() {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
-        core.warning('xxxxxx');
         const isCreatorAssigned = pullRequestContext.assignees.find((u) => (u === null || u === void 0 ? void 0 : u.login) === pullRequestContext.user.login);
         if (!isCreatorAssigned)
             await helpers_1.assignPrCreator(github.context, repoOctokit, pullRequest);
