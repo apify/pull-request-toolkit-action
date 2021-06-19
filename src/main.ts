@@ -19,11 +19,17 @@ async function run(): Promise<void> {
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext) throw new Error('Action works only for PRs!');
 
+        console.log({
+            owner: pullRequestContext.owner,
+            repo: pullRequestContext.repo,
+            pull_number: pullRequestContext.number,
+        });
         const { data: pullRequest } = await repoOctokit.pulls.get({
             owner: pullRequestContext.owner,
             repo: pullRequestContext.repo,
             pull_number: pullRequestContext.number,
         });
+        console.log('xxxxx');
 
         const teamName = await findUsersTeamName(orgOctokit, pullRequestContext.user.login);
         if (!teamName) {
