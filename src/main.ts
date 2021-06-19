@@ -31,8 +31,8 @@ async function run(): Promise<void> {
             return;
         }
 
-        const isCreatorAssign = pullRequestContext.assignees.find((u: Assignee) => u?.login === pullRequestContext.user.login);
-        if (!isCreatorAssign) await assignPrCreator(github.context, repoOctokit, pullRequest);
+        const isCreatorAssigned = pullRequestContext.assignees.find((u: Assignee) => u?.login === pullRequestContext.user.login);
+        if (!isCreatorAssigned) await assignPrCreator(github.context, repoOctokit, pullRequest);
 
         if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
     } catch (error) {

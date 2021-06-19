@@ -138,8 +138,8 @@ async function run() {
             console.log(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
-        const isCreatorAssign = pullRequestContext.assignees.find((u) => (u === null || u === void 0 ? void 0 : u.login) === pullRequestContext.user.login);
-        if (!isCreatorAssign)
+        const isCreatorAssigned = pullRequestContext.assignees.find((u) => (u === null || u === void 0 ? void 0 : u.login) === pullRequestContext.user.login);
+        if (!isCreatorAssigned)
             await helpers_1.assignPrCreator(github.context, repoOctokit, pullRequest);
         if (!pullRequestContext.milestone)
             await helpers_1.fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
