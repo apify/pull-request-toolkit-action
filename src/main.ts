@@ -19,6 +19,7 @@ async function run(): Promise<void> {
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext) throw new Error('Action works only for PRs!');
 
+        console.log(pullRequestContext);
         console.log({
             owner: pullRequestContext.owner,
             repo: pullRequestContext.repo,
