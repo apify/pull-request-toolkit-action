@@ -11,9 +11,11 @@ type Assignee = components['schemas']['simple-user'];
 async function run(): Promise<void> {
     try {
         const repoToken = core.getInput('repo-token');
+        const orgToken = core.getInput('org-token');
         const teamMembers = core.getInput('team-members');
         const teamName = core.getInput('team-name');
-        const octokit = github.getOctokit(repoToken);
+        const repoOctokit = github.getOctokit(repoToken);
+        const orgOctokit = github.getOctokit(orgToken);
 
         const teamMemberList = teamMembers ? teamMembers.split(',').map((member: string) => member.trim()) : [];
         const pullRequestContext = github.context.payload.pull_request;
@@ -25,13 +27,13 @@ async function run(): Promise<void> {
         console.log(typeof process.env.APIFY_SERVICE_ACCOUNT_GITHUB_TOKEN);
         console.log(pullRequestContext);
 
-        const childTeams = await octokit.teams.listChildInOrg({
+        const childTeams = await orgOctokit.teams.listChildInOrg({
             org: 'apify',
             team_slug: 'platform-team',
         });
         console.log(childTeams);
 
-        const pullRequest = await octokit.rest.pulls.get({
+        const pullRequest = await repoOctokit.rest.pulls.get({
             owner: pullRequestContext.owner,
             repo: pullRequestContext.repo,
             pull_number: pullRequestContext.number,
@@ -43,9 +45,9 @@ async function run(): Promise<void> {
         }
 
         const isCreatorAssign = pullRequestContext.assignees.find((u: Assignee) => u?.login === pullRequestContext.user.login);
-        if (!isCreatorAssign) await assignPrCreator(github.context, octokit, pullRequest);
+        if (!isCreatorAssign) await assignPrCreator(github.context, repoOctokit, pullRequest);
 
-        if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, octokit, pullRequest, teamName);
+        if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
     } catch (error) {
         core.setFailed(error.message);
     }
