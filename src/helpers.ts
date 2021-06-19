@@ -6,6 +6,34 @@ type Milestone = components['schemas']['milestone'];
 type Assignee = components['schemas']['simple-user'];
 type PullRequest = components['schemas']['pull-request'];
 
+const ORGANIZATION = 'apify';
+const PARENT_TEAM_SLUG = 'platform-team';
+
+export async function findUsersTeamName(orgOctokit: Octokit, userLogin: string): Promise<string | null> {
+    const { data: childTeams } = await orgOctokit.teams.listChildInOrg({
+        org: ORGANIZATION,
+        team_slug: PARENT_TEAM_SLUG,
+    });
+    if (!childTeams.length) throw new Error('No child teams found!');
+
+    let teamName = null;
+    for (const childTeam of childTeams) {
+        const { data: members } = await orgOctokit.teams.listMembersInOrg({
+            org: ORGANIZATION,
+            team_slug: childTeam.slug,
+        });
+
+        const isMember = members.filter((member: any) => member?.login === userLogin).length > 0;
+        if (isMember) {
+            teamName = childTeam.name;
+            console.log(`User ${userLogin} belongs to a team ${teamName}`);
+            break;
+        }
+    }
+
+    return teamName;
+};
+
 export function findMilestone(milestones: Milestone[], teamName: string): Milestone {
     const now = new Date();
 

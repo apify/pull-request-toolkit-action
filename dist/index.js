@@ -8,7 +8,33 @@ require('./sourcemap-register.js');module.exports =
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.fillCurrentMilestone = exports.assignPrCreator = exports.findMilestone = void 0;
+exports.fillCurrentMilestone = exports.assignPrCreator = exports.findMilestone = exports.findUsersTeamName = void 0;
+const ORGANIZATION = 'apify';
+const PARENT_TEAM_SLUG = 'platform-team';
+async function findUsersTeamName(orgOctokit, userLogin) {
+    const { data: childTeams } = await orgOctokit.teams.listChildInOrg({
+        org: ORGANIZATION,
+        team_slug: PARENT_TEAM_SLUG,
+    });
+    if (!childTeams.length)
+        throw new Error('No child teams found!');
+    let teamName = null;
+    for (const childTeam of childTeams) {
+        const { data: members } = await orgOctokit.teams.listMembersInOrg({
+            org: ORGANIZATION,
+            team_slug: childTeam.slug,
+        });
+        const isMember = members.filter((member) => (member === null || member === void 0 ? void 0 : member.login) === userLogin).length > 0;
+        if (isMember) {
+            teamName = childTeam.name;
+            console.log(`User ${userLogin} belongs to a team ${teamName}`);
+            break;
+        }
+    }
+    return teamName;
+}
+exports.findUsersTeamName = findUsersTeamName;
+;
 function findMilestone(milestones, teamName) {
     const now = new Date();
     // All open milestones
@@ -93,42 +119,22 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__webpack_require__(186));
 const github = __importStar(__webpack_require__(438));
 const helpers_1 = __webpack_require__(8);
-const ORGANIZATION = 'apify';
-const PARENT_TEAM_SLUG = 'platform-team';
 async function run() {
     try {
         const repoToken = core.getInput('repo-token');
         const orgToken = core.getInput('org-token');
-        const teamMembers = core.getInput('team-members');
-        const teamName = core.getInput('team-name');
         const repoOctokit = github.getOctokit(repoToken);
         const orgOctokit = github.getOctokit(orgToken);
-        console.log('ytyyy');
-        console.log('ytyyy');
-        console.log('ytyyy');
-        const teamMemberList = teamMembers ? teamMembers.split(',').map((member) => member.trim()) : [];
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext)
             throw new Error('Action works only for PRs!');
-        const { data: childTeams } = await orgOctokit.teams.listChildInOrg({
-            org: ORGANIZATION,
-            team_slug: PARENT_TEAM_SLUG,
-        });
-        if (!childTeams.length)
-            throw new Error('No child teams found!');
-        for (const { slug } of childTeams) {
-            const { data: members } = await orgOctokit.teams.listMembersInOrg({
-                org: ORGANIZATION,
-                team_slug: slug,
-            });
-            console.log(members);
-        }
         const { data: pullRequest } = await repoOctokit.pulls.get({
             owner: pullRequestContext.owner,
             repo: pullRequestContext.repo,
             pull_number: pullRequestContext.number,
         });
-        if (pullRequestContext.user.login && teamMemberList.length && !teamMemberList.includes(pullRequestContext.user.login)) {
+        const teamName = await helpers_1.findUsersTeamName(orgOctokit, pullRequestContext.user.login);
+        if (!teamName) {
             console.log(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }

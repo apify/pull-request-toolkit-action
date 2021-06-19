@@ -5,12 +5,9 @@ inputs:
     repo-token:
         required: true
         description: 'Repository Github token'
-    team-members:
-        required: false
-        description: 'List of Github usernames'
-    team-name:
-        required: false
-        description: 'Name of team'
+    org-token:
+        required: true
+        description: 'Github token with read only access to organization'
 runs:
     using: 'node12'
     main: 'dist/index.js'
