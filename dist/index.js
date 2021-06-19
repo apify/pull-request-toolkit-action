@@ -168,7 +168,6 @@ async function run() {
             repo: pullRequestContext.base.repo.name,
             pull_number: pullRequestContext.number,
         });
-        console.log(pullRequest);
         const teamName = await helpers_1.findUsersTeamName(orgOctokit, pullRequestContext.user.login);
         if (!teamName) {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
