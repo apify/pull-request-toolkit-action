@@ -11,9 +11,9 @@ inputs:
     team-name:
         required: false
         description: 'Name of team'
-    # org-token:
-    #    required: true
-    #    description: 'Github token with read only access to organization'
+    org-token:
+        required: true
+        description: 'Github token with read only access to organization'
 runs:
     using: 'node12'
     main: 'dist/index.js'
