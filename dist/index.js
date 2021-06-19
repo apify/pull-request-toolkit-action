@@ -31,12 +31,15 @@ exports.fillCurrentMilestone = exports.assignPrCreator = exports.findMilestone =
 const core = __importStar(__webpack_require__(186));
 const ORGANIZATION = 'apify';
 const PARENT_TEAM_SLUG = 'platform-team';
+/**
+ * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.
+ */
 async function findUsersTeamName(orgOctokit, userLogin) {
     const { data: childTeams } = await orgOctokit.teams.listChildInOrg({
         org: ORGANIZATION,
         team_slug: PARENT_TEAM_SLUG,
     });
-    if (childTeams.length)
+    if (!childTeams.length)
         throw new Error('No child teams found!');
     let teamName = null;
     for (const childTeam of childTeams) {
@@ -55,6 +58,10 @@ async function findUsersTeamName(orgOctokit, userLogin) {
 }
 exports.findUsersTeamName = findUsersTeamName;
 ;
+/**
+ * Finds a current milestone for a given team.
+ * Milestone name must contain a team name and have correct start and end dates.
+ */
 function findMilestone(milestones, teamName) {
     const now = new Date();
     // All open milestones
@@ -74,6 +81,9 @@ function findMilestone(milestones, teamName) {
 }
 exports.findMilestone = findMilestone;
 ;
+/**
+ * Configures PR assignee to be the same as PR creater.
+ */
 async function assignPrCreator(context, octokit, pullRequest) {
     var _a;
     const assignees = pullRequest.assignees || [];
@@ -87,6 +97,9 @@ async function assignPrCreator(context, octokit, pullRequest) {
     core.info('Creator successfully assigned');
 }
 exports.assignPrCreator = assignPrCreator;
+/**
+ * If milestone is not set then sets it to a current milestone of a given team.
+ */
 async function fillCurrentMilestone(context, octokit, pullRequest, teamName) {
     // Assign PR to right sprint milestone
     const { data: milestones } = await octokit.request('GET /repos/{owner}/{repo}/milestones', {
@@ -144,7 +157,6 @@ async function run() {
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
-        core.warning('xxxxxx');
         // Organization token providing read-only access to the organization.
         const orgToken = core.getInput('org-token');
         const orgOctokit = github.getOctokit(orgToken);
@@ -156,6 +168,7 @@ async function run() {
             repo: pullRequestContext.base.repo.name,
             pull_number: pullRequestContext.number,
         });
+        console.log(pullRequest);
         const teamName = await helpers_1.findUsersTeamName(orgOctokit, pullRequestContext.user.login);
         if (!teamName) {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);

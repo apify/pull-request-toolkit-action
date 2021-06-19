@@ -10,12 +10,15 @@ type PullRequest = components['schemas']['pull-request'];
 const ORGANIZATION = 'apify';
 const PARENT_TEAM_SLUG = 'platform-team';
 
+/**
+ * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.
+ */
 export async function findUsersTeamName(orgOctokit: Octokit, userLogin: string): Promise<string | null> {
     const { data: childTeams } = await orgOctokit.teams.listChildInOrg({
         org: ORGANIZATION,
         team_slug: PARENT_TEAM_SLUG,
     });
-    if (childTeams.length) throw new Error('No child teams found!');
+    if (!childTeams.length) throw new Error('No child teams found!');
 
     let teamName = null;
     for (const childTeam of childTeams) {
@@ -35,6 +38,10 @@ export async function findUsersTeamName(orgOctokit: Octokit, userLogin: string):
     return teamName;
 };
 
+/**
+ * Finds a current milestone for a given team.
+ * Milestone name must contain a team name and have correct start and end dates.
+ */
 export function findMilestone(milestones: Milestone[], teamName: string): Milestone {
     const now = new Date();
 
@@ -55,6 +62,9 @@ export function findMilestone(milestones: Milestone[], teamName: string): Milest
     return foundMilestone;
 };
 
+/**
+ * Configures PR assignee to be the same as PR creater.
+ */
 export async function assignPrCreator(context: Context, octokit: Octokit, pullRequest: PullRequest): Promise<void> {
     const assignees = pullRequest.assignees || [];
 
@@ -68,6 +78,9 @@ export async function assignPrCreator(context: Context, octokit: Octokit, pullRe
     core.info('Creator successfully assigned');
 }
 
+/**
+ * If milestone is not set then sets it to a current milestone of a given team.
+ */
 export async function fillCurrentMilestone(context: Context, octokit: Octokit, pullRequest: PullRequest, teamName: string): Promise<void> {
     // Assign PR to right sprint milestone
     const { data: milestones } = await octokit.request('GET /repos/{owner}/{repo}/milestones', {

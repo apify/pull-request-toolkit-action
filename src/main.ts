@@ -15,8 +15,6 @@ async function run(): Promise<void> {
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
 
-        core.warning('xxxxxx');
-
         // Organization token providing read-only access to the organization.
         const orgToken = core.getInput('org-token');
         const orgOctokit = github.getOctokit(orgToken);
@@ -29,6 +27,8 @@ async function run(): Promise<void> {
             repo: pullRequestContext.base.repo.name,
             pull_number: pullRequestContext.number,
         });
+
+        console.log(pullRequest);
 
         const teamName = await findUsersTeamName(orgOctokit, pullRequestContext.user.login);
         if (!teamName) {
