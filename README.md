@@ -11,6 +11,7 @@ This action automates a couple of processes connected with a management of Githu
 
 - Make sure that pull request has either issue assigned (using the Zenhub issue-PR connection) or has estimate and labels set.
 - Github action for a publishing of a new version.
+- Github action for lint and tests execution.
 - Use Docker image with runtime typescript compilation instead of commiting a dist directory.
 
 # Action input
