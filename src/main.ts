@@ -17,9 +17,9 @@ async function run(): Promise<void> {
         const repoOctokit = github.getOctokit(repoToken);
         const orgOctokit = github.getOctokit(orgToken);
 
-        console.log('ytyyy')
-        console.log('ytyyy')
-        console.log('ytyyy')
+        console.log('ytyyy');
+        console.log('ytyyy');
+        console.log('ytyyy');
 
         const teamMemberList = teamMembers ? teamMembers.split(',').map((member: string) => member.trim()) : [];
         const pullRequestContext = github.context.payload.pull_request;
@@ -28,17 +28,17 @@ async function run(): Promise<void> {
             return;
         }
 
-        console.log('fetching teams ....')
-        console.log('fetching teams ....')
-        console.log('fetching teams ....')
+        console.log('fetching teams ....');
+        console.log('fetching teams ....');
+        console.log('fetching teams ....');
         const childTeams = await orgOctokit.teams.listChildInOrg({
             org: 'apify',
             team_slug: 'platform-team',
         });
         console.log(childTeams);
-        console.log('done')
-        console.log('done')
-        console.log('done')
+        console.log('done');
+        console.log('done');
+        console.log('done');
 
         const pullRequest = await repoOctokit.rest.pulls.get({
             owner: pullRequestContext.owner,

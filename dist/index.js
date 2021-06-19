@@ -96,23 +96,32 @@ const helpers_1 = __webpack_require__(8);
 async function run() {
     try {
         const repoToken = core.getInput('repo-token');
+        const orgToken = core.getInput('org-token');
         const teamMembers = core.getInput('team-members');
         const teamName = core.getInput('team-name');
-        const octokit = github.getOctokit(repoToken);
+        const repoOctokit = github.getOctokit(repoToken);
+        const orgOctokit = github.getOctokit(orgToken);
+        console.log('ytyyy');
+        console.log('ytyyy');
+        console.log('ytyyy');
         const teamMemberList = teamMembers ? teamMembers.split(',').map((member) => member.trim()) : [];
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext) {
             core.setFailed('Action works only for PRs');
             return;
         }
-        console.log(typeof process.env.APIFY_SERVICE_ACCOUNT_GITHUB_TOKEN);
-        console.log(pullRequestContext);
-        const childTeams = await octokit.teams.listChildInOrg({
+        console.log('fetching teams ....');
+        console.log('fetching teams ....');
+        console.log('fetching teams ....');
+        const childTeams = await orgOctokit.teams.listChildInOrg({
             org: 'apify',
             team_slug: 'platform-team',
         });
         console.log(childTeams);
-        const pullRequest = await octokit.rest.pulls.get({
+        console.log('done');
+        console.log('done');
+        console.log('done');
+        const pullRequest = await repoOctokit.rest.pulls.get({
             owner: pullRequestContext.owner,
             repo: pullRequestContext.repo,
             pull_number: pullRequestContext.number,
@@ -123,9 +132,9 @@ async function run() {
         }
         const isCreatorAssign = pullRequestContext.assignees.find((u) => (u === null || u === void 0 ? void 0 : u.login) === pullRequestContext.user.login);
         if (!isCreatorAssign)
-            await helpers_1.assignPrCreator(github.context, octokit, pullRequest);
+            await helpers_1.assignPrCreator(github.context, repoOctokit, pullRequest);
         if (!pullRequestContext.milestone)
-            await helpers_1.fillCurrentMilestone(github.context, octokit, pullRequest, teamName);
+            await helpers_1.fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
     }
     catch (error) {
         core.setFailed(error.message);
