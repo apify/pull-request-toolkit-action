@@ -17,6 +17,10 @@ async function run(): Promise<void> {
         const repoOctokit = github.getOctokit(repoToken);
         const orgOctokit = github.getOctokit(orgToken);
 
+        console.log('ytyyy')
+        console.log('ytyyy')
+        console.log('ytyyy')
+
         const teamMemberList = teamMembers ? teamMembers.split(',').map((member: string) => member.trim()) : [];
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext) {
