@@ -24,14 +24,17 @@ async function run(): Promise<void> {
             return;
         }
 
-        console.log(typeof process.env.APIFY_SERVICE_ACCOUNT_GITHUB_TOKEN);
-        console.log(pullRequestContext);
-
+        console.log('fetching teams ....')
+        console.log('fetching teams ....')
+        console.log('fetching teams ....')
         const childTeams = await orgOctokit.teams.listChildInOrg({
             org: 'apify',
             team_slug: 'platform-team',
         });
         console.log(childTeams);
+        console.log('done')
+        console.log('done')
+        console.log('done')
 
         const pullRequest = await repoOctokit.rest.pulls.get({
             owner: pullRequestContext.owner,
