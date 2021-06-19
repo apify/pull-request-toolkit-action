@@ -1,3 +1,4 @@
+import * as core from '@actions/core';
 import { components } from '@octokit/openapi-types/dist-types/generated/types.d';
 import { Octokit } from '@octokit/core/dist-types';
 import { Context } from '@actions/github/lib/context.d';
@@ -14,7 +15,7 @@ export async function findUsersTeamName(orgOctokit: Octokit, userLogin: string):
         org: ORGANIZATION,
         team_slug: PARENT_TEAM_SLUG,
     });
-    if (!childTeams.length) throw new Error('No child teams found!');
+    if (childTeams.length) throw new Error('No child teams found!');
 
     let teamName = null;
     for (const childTeam of childTeams) {
@@ -26,7 +27,7 @@ export async function findUsersTeamName(orgOctokit: Octokit, userLogin: string):
         const isMember = members.filter((member: any) => member?.login === userLogin).length > 0;
         if (isMember) {
             teamName = childTeam.name;
-            console.log(`User ${userLogin} belongs to a team ${teamName}`);
+            core.info(`User ${userLogin} belongs to a team ${teamName}`);
             break;
         }
     }
@@ -64,7 +65,7 @@ export async function assignPrCreator(context: Context, octokit: Octokit, pullRe
         issue_number: pullRequest.number,
         assignees: [pullRequest.user?.login].concat(assignees.map((u: Assignee) => u?.login)),
     });
-    console.log('Creator successfully assigned');
+    core.info('Creator successfully assigned');
 }
 
 export async function fillCurrentMilestone(context: Context, octokit: Octokit, pullRequest: PullRequest, teamName: string): Promise<void> {
@@ -84,5 +85,5 @@ export async function fillCurrentMilestone(context: Context, octokit: Octokit, p
         issue_number: pullRequest.number,
         milestone: foundMilestone.number,
     });
-    console.log(`Milestone successfully filled with ${foundMilestone.title}`);
+    core.info(`Milestone successfully filled with ${foundMilestone.title}`);
 }

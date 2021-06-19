@@ -3,12 +3,32 @@ require('./sourcemap-register.js');module.exports =
 /******/ 	var __webpack_modules__ = ({
 
 /***/ 8:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.fillCurrentMilestone = exports.assignPrCreator = exports.findMilestone = exports.findUsersTeamName = void 0;
+const core = __importStar(__webpack_require__(186));
 const ORGANIZATION = 'apify';
 const PARENT_TEAM_SLUG = 'platform-team';
 async function findUsersTeamName(orgOctokit, userLogin) {
@@ -16,7 +36,7 @@ async function findUsersTeamName(orgOctokit, userLogin) {
         org: ORGANIZATION,
         team_slug: PARENT_TEAM_SLUG,
     });
-    if (!childTeams.length)
+    if (childTeams.length)
         throw new Error('No child teams found!');
     let teamName = null;
     for (const childTeam of childTeams) {
@@ -27,7 +47,7 @@ async function findUsersTeamName(orgOctokit, userLogin) {
         const isMember = members.filter((member) => (member === null || member === void 0 ? void 0 : member.login) === userLogin).length > 0;
         if (isMember) {
             teamName = childTeam.name;
-            console.log(`User ${userLogin} belongs to a team ${teamName}`);
+            core.info(`User ${userLogin} belongs to a team ${teamName}`);
             break;
         }
     }
@@ -64,7 +84,7 @@ async function assignPrCreator(context, octokit, pullRequest) {
         issue_number: pullRequest.number,
         assignees: [(_a = pullRequest.user) === null || _a === void 0 ? void 0 : _a.login].concat(assignees.map((u) => u === null || u === void 0 ? void 0 : u.login)),
     });
-    console.log('Creator successfully assigned');
+    core.info('Creator successfully assigned');
 }
 exports.assignPrCreator = assignPrCreator;
 async function fillCurrentMilestone(context, octokit, pullRequest, teamName) {
@@ -84,7 +104,7 @@ async function fillCurrentMilestone(context, octokit, pullRequest, teamName) {
         issue_number: pullRequest.number,
         milestone: foundMilestone.number,
     });
-    console.log(`Milestone successfully filled with ${foundMilestone.title}`);
+    core.info(`Milestone successfully filled with ${foundMilestone.title}`);
 }
 exports.fillCurrentMilestone = fillCurrentMilestone;
 
@@ -121,9 +141,11 @@ const github = __importStar(__webpack_require__(438));
 const helpers_1 = __webpack_require__(8);
 async function run() {
     try {
+        // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
-        const orgToken = core.getInput('org-token');
         const repoOctokit = github.getOctokit(repoToken);
+        // Organization token providing read-only access to the organization.
+        const orgToken = core.getInput('org-token');
         const orgOctokit = github.getOctokit(orgToken);
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext)
@@ -133,12 +155,12 @@ async function run() {
             repo: pullRequestContext.base.repo.name,
             pull_number: pullRequestContext.number,
         });
-        console.log('xxxxx');
         const teamName = await helpers_1.findUsersTeamName(orgOctokit, pullRequestContext.user.login);
         if (!teamName) {
-            console.log(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
+            core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
+        core.warning('xxxxxx');
         const isCreatorAssigned = pullRequestContext.assignees.find((u) => (u === null || u === void 0 ? void 0 : u.login) === pullRequestContext.user.login);
         if (!isCreatorAssigned)
             await helpers_1.assignPrCreator(github.context, repoOctokit, pullRequest);
@@ -146,7 +168,7 @@ async function run() {
             await helpers_1.fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
     }
     catch (error) {
-        console.log(error);
+        core.error(error);
         core.setFailed(error.message);
     }
 }

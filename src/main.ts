@@ -11,9 +11,12 @@ type Assignee = components['schemas']['simple-user'];
 
 async function run(): Promise<void> {
     try {
+        // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
-        const orgToken = core.getInput('org-token');
         const repoOctokit = github.getOctokit(repoToken);
+
+        // Organization token providing read-only access to the organization.
+        const orgToken = core.getInput('org-token');
         const orgOctokit = github.getOctokit(orgToken);
 
         const pullRequestContext = github.context.payload.pull_request;
@@ -24,20 +27,21 @@ async function run(): Promise<void> {
             repo: pullRequestContext.base.repo.name,
             pull_number: pullRequestContext.number,
         });
-        console.log('xxxxx');
 
         const teamName = await findUsersTeamName(orgOctokit, pullRequestContext.user.login);
         if (!teamName) {
-            console.log(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
+            core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
+
+        core.warning('xxxxxx');
 
         const isCreatorAssigned = pullRequestContext.assignees.find((u: Assignee) => u?.login === pullRequestContext.user.login);
         if (!isCreatorAssigned) await assignPrCreator(github.context, repoOctokit, pullRequest);
 
         if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
     } catch (error) {
-        console.log(error);
+        core.error(error);
         core.setFailed(error.message);
     }
 }
