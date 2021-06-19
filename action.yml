@@ -1,5 +1,5 @@
 name: 'Apify PR toolkit'
-description: 'This action helps to Apify PR be better.'
+description: 'This action automates a couple of processes connected with a management of Github pull requests.'
 author: 'Apify'
 inputs:
     repo-token:
