@@ -19,9 +19,8 @@ async function run(): Promise<void> {
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext) throw new Error('Action works only for PRs!');
 
-        console.log(pullRequestContext.base.repo.owner);
         const { data: pullRequest } = await repoOctokit.pulls.get({
-            owner: pullRequestContext.owner,
+            owner: pullRequestContext.base.repo.owner.login,
             repo: pullRequestContext.base.repo.name,
             pull_number: pullRequestContext.number,
         });
