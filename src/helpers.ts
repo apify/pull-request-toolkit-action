@@ -27,7 +27,7 @@ export async function findUsersTeamName(orgOctokit: Octokit, userLogin: string):
             team_slug: childTeam.slug,
         });
 
-        const isMember = members.filter((member: any) => member?.login === userLogin).length > 0;
+        const isMember = !!members.find((member: any) => member?.login === userLogin);
         if (isMember) {
             teamName = childTeam.name;
             core.info(`User ${userLogin} belongs to a team ${teamName}`);

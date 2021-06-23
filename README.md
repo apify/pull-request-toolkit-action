@@ -42,11 +42,11 @@ jobs:
           ref: refs/tags/v1.0.1
           path: ./.github/actions/pull-request-toolkit-action
 
-      - name: run PR toolkit
+      - name: run pull-request-toolkit action
         uses: ./.github/actions/pull-request-toolkit-action
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          team-members: mtrunkat,gippy,drobnikj,fnesveda,mhamas,valekjo,Strajk,nguyeda1,dragonraid,jbartadev,m-murasovs
+          org-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_GITHUB_TOKEN }}
 ```
 
 # Contribution
