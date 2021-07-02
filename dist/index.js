@@ -2,6 +2,128 @@ require('./sourcemap-register.js');module.exports =
 /******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
+/***/ 8:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.fillCurrentMilestone = exports.assignPrCreator = exports.findMilestone = exports.findUsersTeamName = void 0;
+const core = __importStar(__webpack_require__(186));
+const ORGANIZATION = 'apify';
+const PARENT_TEAM_SLUG = 'platform-team';
+/**
+ * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.
+ */
+async function findUsersTeamName(orgOctokit, userLogin) {
+    const { data: childTeams } = await orgOctokit.teams.listChildInOrg({
+        org: ORGANIZATION,
+        team_slug: PARENT_TEAM_SLUG,
+    });
+    if (!childTeams.length)
+        throw new Error('No child teams found!');
+    let teamName = null;
+    for (const childTeam of childTeams) {
+        const { data: members } = await orgOctokit.teams.listMembersInOrg({
+            org: ORGANIZATION,
+            team_slug: childTeam.slug,
+        });
+        const isMember = members.filter((member) => (member === null || member === void 0 ? void 0 : member.login) === userLogin).length > 0;
+        if (isMember) {
+            teamName = childTeam.name;
+            core.info(`User ${userLogin} belongs to a team ${teamName}`);
+            break;
+        }
+    }
+    return teamName;
+}
+exports.findUsersTeamName = findUsersTeamName;
+;
+/**
+ * Finds a current milestone for a given team.
+ * Milestone name must contain a team name and have correct start and end dates.
+ */
+function findMilestone(milestones, teamName) {
+    const now = new Date();
+    // All open milestones
+    const openMilestones = milestones.filter((milestone) => {
+        return milestone.state === 'open'
+            && milestone.due_on
+            && new Date(milestone.due_on) >= now;
+    });
+    // Find milestone for the team, if team name was provided
+    const teamNameRegExp = new RegExp(teamName, 'i');
+    const foundMilestone = openMilestones.find((milestone) => {
+        return milestone.title.match(teamNameRegExp);
+    });
+    if (!foundMilestone)
+        throw new Error(`Cannot find milestone for "${teamName}" team`);
+    return foundMilestone;
+}
+exports.findMilestone = findMilestone;
+;
+/**
+ * Configures PR assignee to be the same as PR creater.
+ */
+async function assignPrCreator(context, octokit, pullRequest) {
+    var _a;
+    const assignees = pullRequest.assignees || [];
+    // Assign pull request with PR creator
+    await octokit.issues.update({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: pullRequest.number,
+        assignees: [(_a = pullRequest.user) === null || _a === void 0 ? void 0 : _a.login].concat(assignees.map((u) => u === null || u === void 0 ? void 0 : u.login)),
+    });
+    core.info('Creator successfully assigned');
+}
+exports.assignPrCreator = assignPrCreator;
+/**
+ * If milestone is not set then sets it to a current milestone of a given team.
+ */
+async function fillCurrentMilestone(context, octokit, pullRequest, teamName) {
+    // Assign PR to right sprint milestone
+    const { data: milestones } = await octokit.request('GET /repos/{owner}/{repo}/milestones', {
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+    });
+    if (milestones.length === 0)
+        throw new Error('No sprint milestone!');
+    const foundMilestone = findMilestone(milestones, teamName);
+    if (!foundMilestone)
+        throw new Error('Cannot find current sprint milestone!');
+    await octokit.issues.update({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: pullRequest.number,
+        milestone: foundMilestone.number,
+    });
+    core.info(`Milestone successfully filled with ${foundMilestone.title}`);
+}
+exports.fillCurrentMilestone = fillCurrentMilestone;
+
+
+/***/ }),
+
 /***/ 109:
 /***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
@@ -27,91 +149,38 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.findMilestone = void 0;
 const core = __importStar(__webpack_require__(186));
 const github = __importStar(__webpack_require__(438));
-async function assignPrCreator(octokit, pullRequest) {
-    // Assign pull request with PR creator
-    await octokit.issues.update({
-        owner: github.context.repo.owner,
-        repo: github.context.repo.repo,
-        issue_number: pullRequest.number,
-        assignees: [pullRequest.user.login].concat(pullRequest.assignees.map((u) => u.login)),
-    });
-    console.log('Creator successfully assigned');
-}
-function findMilestone(milestones, teamName) {
-    const now = new Date();
-    // All open milestones
-    const openMilestones = milestones.filter((milestone) => {
-        return milestone.state === 'open'
-            && milestone.due_on && new Date(milestone.due_on) >= now;
-    });
-    // Find milestone for the team, if team name was provided
-    let foundMilestone;
-    if (teamName) {
-        const teamNameRegExp = new RegExp(teamName, 'i');
-        foundMilestone = openMilestones.find((milestone) => {
-            return milestone.title.match(teamNameRegExp)
-                || milestone.description.match(teamNameRegExp);
-        });
-        if (!foundMilestone)
-            console.log(`Cannot find milestone for "${teamName}" team`);
-    }
-    else if (openMilestones.length) {
-        ([foundMilestone] = openMilestones);
-    }
-    return foundMilestone;
-}
-exports.findMilestone = findMilestone;
-async function fillCurrentMilestone(octokit, pullRequest, teamName) {
-    // Assign PR to right sprint milestone
-    const { data: milestones } = await octokit.request('GET /repos/{owner}/{repo}/milestones', {
-        owner: github.context.repo.owner,
-        repo: github.context.repo.repo,
-    });
-    if (milestones.length === 0) {
-        core.setFailed('No sprint milestone!');
-        return;
-    }
-    const foundMilestone = findMilestone(milestones, teamName);
-    if (!foundMilestone) {
-        core.setFailed('Cannot find current sprint milestone!');
-        return;
-    }
-    await octokit.issues.update({
-        owner: github.context.repo.owner,
-        repo: github.context.repo.repo,
-        issue_number: pullRequest.number,
-        milestone: foundMilestone.number,
-    });
-    console.log(`Milestone successfully filled with ${foundMilestone.title}`);
-}
+const helpers_1 = __webpack_require__(8);
 async function run() {
     try {
+        // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
-        const teamMembers = core.getInput('team-members');
-        const teamName = core.getInput('team-name');
-        const octokit = github.getOctokit(repoToken);
-        const teamMemberList = teamMembers ? teamMembers.split(',').map((member) => member.trim()) : [];
-        const pullRequest = github.context.payload.pull_request;
-        if (!pullRequest) {
-            core.setFailed('Action works only for PRs');
+        const repoOctokit = github.getOctokit(repoToken);
+        // Organization token providing read-only access to the organization.
+        const orgToken = core.getInput('org-token');
+        const orgOctokit = github.getOctokit(orgToken);
+        const pullRequestContext = github.context.payload.pull_request;
+        if (!pullRequestContext)
+            throw new Error('Action works only for PRs!');
+        const { data: pullRequest } = await repoOctokit.pulls.get({
+            owner: pullRequestContext.base.repo.owner.login,
+            repo: pullRequestContext.base.repo.name,
+            pull_number: pullRequestContext.number,
+        });
+        const teamName = await helpers_1.findUsersTeamName(orgOctokit, pullRequestContext.user.login);
+        if (!teamName) {
+            core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
-        if (pullRequest.user.login && teamMemberList.length && !teamMemberList.includes(pullRequest.user.login)) {
-            console.log(`User ${pullRequest.user.login} is not a member of team. Skipping toolkit action.`);
-            return;
-        }
-        const isCreatorAssign = pullRequest.assignees.find((u) => u.login === pullRequest.user.login);
-        // Assign PR to creator of PR
-        if (!isCreatorAssign)
-            await assignPrCreator(octokit, pullRequest);
-        // Fill milestone if there is any yet.
-        if (!pullRequest.milestone)
-            await fillCurrentMilestone(octokit, pullRequest, teamName);
+        const isCreatorAssigned = pullRequestContext.assignees.find((u) => (u === null || u === void 0 ? void 0 : u.login) === pullRequestContext.user.login);
+        if (!isCreatorAssigned)
+            await helpers_1.assignPrCreator(github.context, repoOctokit, pullRequest);
+        if (!pullRequestContext.milestone)
+            await helpers_1.fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
     }
     catch (error) {
+        core.error(error);
         core.setFailed(error.message);
     }
 }

@@ -1,19 +1,25 @@
 # Pull request toolkit
 
-This action makes PR better for Zenhub integration.
+This action automates a couple of processes connected with a management of Github pull requests.
 
 # What it does
 
-- Assign PR to the creator of PR
-- Fill missing milestone with a current milestone for the repository
+- Assigns PR to the its creater
+- Fills missing milestone with a current milestone from Zenhub
+
+## Wishlist / TODOs
+
+- Make sure that pull request has either issue assigned (using the Zenhub issue-PR connection) or has estimate and labels set.
+- Github action for a publishing of a new version.
+- Github action for lint and tests execution.
+- Use Docker image with runtime typescript compilation instead of commiting a dist directory.
 
 # Action input
 
-| Name               |                                                                    Description           |                                                     Example | Required |
-| ------------------ | --------------------------------------------------------------------------------         | ----------------------------------------------------------- | -------- |
-| `repo-token`       |                                                           Repository Github token        |                                              `github-token` |      yes |
-| `team-members`     | List of Github usernames for members using toolkit (by default everybody included)       |                                       `username1,username2` |       no |
-| `team-name`        | If name is provide, the milestone will be filter by regexp base on team name.            |                                                  `platform` |       no |
+| Name         | Description                                        | Example        | Required |
+| -------------| -------------------------------------------------- | ---------------| -------- |
+| `repo-token` | Repository Github token                            | `github-token` |      yes |
+| `org-token`  | Github token with read only access to organization | `github-token` |      yes |
 
 # Example usage
 
@@ -36,18 +42,14 @@ jobs:
           ref: refs/tags/v1.0.1
           path: ./.github/actions/pull-request-toolkit-action
 
-      - name: run PR toolkit
+      - name: run pull-request-toolkit action
         uses: ./.github/actions/pull-request-toolkit-action
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          team-members: mtrunkat,gippy,drobnikj,fnesveda,mhamas,valekjo,Strajk,nguyeda1,dragonraid,jbartadev,m-murasovs
+          org-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_GITHUB_TOKEN }}
 ```
-# TBD
 
-- Tests
-- Github action for publishing new version
-
-## Contribution
+# Contribution
 
 1. Update code in `./src`
 2. Run `npm i`

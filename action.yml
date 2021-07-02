@@ -1,16 +1,13 @@
 name: 'Apify PR toolkit'
-description: 'This action helps to Apify PR be better.'
+description: 'This action automates a couple of processes connected with a management of Github pull requests.'
 author: 'Apify'
 inputs:
     repo-token:
         required: true
         description: 'Repository Github token'
-    team-members:
-        required: false
-        description: 'List of Github usernames'
-    team-name:
-        required: false
-        description: 'Name of team'
+    org-token:
+        required: true
+        description: 'Github token with read only access to organization'
 runs:
     using: 'node12'
     main: 'dist/index.js'
