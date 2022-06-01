@@ -1,4 +1,4 @@
-import { components } from '@octokit/openapi-types/dist-types/generated/types.d';
+import { components } from '@octokit/openapi-types/types.d';
 import { findMilestone } from './helpers';
 
 type Milestone = components['schemas']['milestone'];
