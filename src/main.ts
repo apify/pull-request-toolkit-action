@@ -39,6 +39,7 @@ async function run(): Promise<void> {
 
         if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
     } catch (error) {
+        console.error(error);
         core.error(error);
         core.setFailed(error.message);
     }
