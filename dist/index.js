@@ -35,7 +35,7 @@ const PARENT_TEAM_SLUG = 'platform-team';
  * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.
  */
 async function findUsersTeamName(orgOctokit, userLogin) {
-    const { data: childTeams } = await orgOctokit.teams.listChildInOrg({
+    const { data: childTeams } = await orgOctokit.rest.teams.listChildInOrg({
         org: ORGANIZATION,
         team_slug: PARENT_TEAM_SLUG,
     });
@@ -43,7 +43,7 @@ async function findUsersTeamName(orgOctokit, userLogin) {
         throw new Error('No child teams found!');
     let teamName = null;
     for (const childTeam of childTeams) {
-        const { data: members } = await orgOctokit.teams.listMembersInOrg({
+        const { data: members } = await orgOctokit.rest.teams.listMembersInOrg({
             org: ORGANIZATION,
             team_slug: childTeam.slug,
         });
@@ -88,7 +88,7 @@ async function assignPrCreator(context, octokit, pullRequest) {
     var _a;
     const assignees = pullRequest.assignees || [];
     // Assign pull request with PR creator
-    await octokit.issues.update({
+    await octokit.rest.issues.update({
         owner: context.repo.owner,
         repo: context.repo.repo,
         issue_number: pullRequest.number,
@@ -111,7 +111,7 @@ async function fillCurrentMilestone(context, octokit, pullRequest, teamName) {
     const foundMilestone = findMilestone(milestones, teamName);
     if (!foundMilestone)
         throw new Error('Cannot find current sprint milestone!');
-    await octokit.issues.update({
+    await octokit.rest.issues.update({
         owner: context.repo.owner,
         repo: context.repo.repo,
         issue_number: pullRequest.number,
@@ -163,7 +163,7 @@ async function run() {
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext)
             throw new Error('Action works only for PRs!');
-        const { data: pullRequest } = await repoOctokit.pulls.get({
+        const { data: pullRequest } = await repoOctokit.rest.pulls.get({
             owner: pullRequestContext.base.repo.owner.login,
             repo: pullRequestContext.base.repo.name,
             pull_number: pullRequestContext.number,

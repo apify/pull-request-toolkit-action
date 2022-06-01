@@ -14,7 +14,7 @@ const PARENT_TEAM_SLUG = 'platform-team';
  * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.
  */
 export async function findUsersTeamName(orgOctokit: Octokit, userLogin: string): Promise<string | null> {
-    const { data: childTeams } = await orgOctokit.teams.listChildInOrg({
+    const { data: childTeams } = await orgOctokit.rest.teams.listChildInOrg({
         org: ORGANIZATION,
         team_slug: PARENT_TEAM_SLUG,
     });
@@ -22,7 +22,7 @@ export async function findUsersTeamName(orgOctokit: Octokit, userLogin: string):
 
     let teamName = null;
     for (const childTeam of childTeams) {
-        const { data: members } = await orgOctokit.teams.listMembersInOrg({
+        const { data: members } = await orgOctokit.rest.teams.listMembersInOrg({
             org: ORGANIZATION,
             team_slug: childTeam.slug,
         });
@@ -69,7 +69,7 @@ export async function assignPrCreator(context: Context, octokit: Octokit, pullRe
     const assignees = pullRequest.assignees || [];
 
     // Assign pull request with PR creator
-    await octokit.issues.update({
+    await octokit.rest.issues.update({
         owner: context.repo.owner,
         repo: context.repo.repo,
         issue_number: pullRequest.number,
@@ -92,7 +92,7 @@ export async function fillCurrentMilestone(context: Context, octokit: Octokit, p
     const foundMilestone = findMilestone(milestones, teamName);
     if (!foundMilestone) throw new Error('Cannot find current sprint milestone!');
 
-    await octokit.issues.update({
+    await octokit.rest.issues.update({
         owner: context.repo.owner,
         repo: context.repo.repo,
         issue_number: pullRequest.number,
