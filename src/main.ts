@@ -1,4 +1,4 @@
-import { components } from '@octokit/openapi-types/dist-types/generated/types.d';
+import { components } from '@octokit/openapi-types/types.d';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import {
@@ -39,8 +39,11 @@ async function run(): Promise<void> {
 
         if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
     } catch (error) {
-        core.error(error);
-        core.setFailed(error.message);
+        if (error instanceof Error) {
+            core.error(error);
+            console.error(error); // eslint-disable-line no-console
+            core.setFailed(error.message);
+        }
     }
 }
 

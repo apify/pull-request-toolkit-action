@@ -1,11 +1,12 @@
 import * as core from '@actions/core';
-import { components } from '@octokit/openapi-types/dist-types/generated/types.d';
-import { Octokit } from '@octokit/core/dist-types';
+import { type getOctokit } from '@actions/github';
+import { components } from '@octokit/openapi-types/types.d';
 import { Context } from '@actions/github/lib/context.d';
 
 type Milestone = components['schemas']['milestone'];
-type Assignee = components['schemas']['simple-user'];
 type PullRequest = components['schemas']['pull-request'];
+
+type OctokitType = ReturnType<typeof getOctokit>;
 
 const ORGANIZATION = 'apify';
 const PARENT_TEAM_SLUG = 'platform-team';
@@ -13,7 +14,7 @@ const PARENT_TEAM_SLUG = 'platform-team';
 /**
  * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.
  */
-export async function findUsersTeamName(orgOctokit: Octokit, userLogin: string): Promise<string | null> {
+export async function findUsersTeamName(orgOctokit: OctokitType, userLogin: string): Promise<string | null> {
     const { data: childTeams } = await orgOctokit.rest.teams.listChildInOrg({
         org: ORGANIZATION,
         team_slug: PARENT_TEAM_SLUG,
@@ -27,7 +28,7 @@ export async function findUsersTeamName(orgOctokit: Octokit, userLogin: string):
             team_slug: childTeam.slug,
         });
 
-        const isMember = !!members.find((member: any) => member?.login === userLogin);
+        const isMember = members.some((member) => member?.login === userLogin);
         if (isMember) {
             teamName = childTeam.name;
             core.info(`User ${userLogin} belongs to a team ${teamName}`);
@@ -65,15 +66,16 @@ export function findMilestone(milestones: Milestone[], teamName: string): Milest
 /**
  * Configures PR assignee to be the same as PR creater.
  */
-export async function assignPrCreator(context: Context, octokit: Octokit, pullRequest: PullRequest): Promise<void> {
+export async function assignPrCreator(context: Context, octokit: OctokitType, pullRequest: PullRequest): Promise<void> {
     const assignees = pullRequest.assignees || [];
+    const assigneeLogins = ([pullRequest.user].concat(assignees)).map((u) => u?.login).filter((login): login is string => !!login);
 
     // Assign pull request with PR creator
     await octokit.rest.issues.update({
         owner: context.repo.owner,
         repo: context.repo.repo,
         issue_number: pullRequest.number,
-        assignees: [pullRequest.user?.login].concat(assignees.map((u: Assignee) => u?.login)),
+        assignees: assigneeLogins,
     });
     core.info('Creator successfully assigned');
 }
@@ -81,7 +83,7 @@ export async function assignPrCreator(context: Context, octokit: Octokit, pullRe
 /**
  * If milestone is not set then sets it to a current milestone of a given team.
  */
-export async function fillCurrentMilestone(context: Context, octokit: Octokit, pullRequest: PullRequest, teamName: string): Promise<void> {
+export async function fillCurrentMilestone(context: Context, octokit: OctokitType, pullRequest: PullRequest, teamName: string): Promise<void> {
     // Assign PR to right sprint milestone
     const { data: milestones } = await octokit.request('GET /repos/{owner}/{repo}/milestones', {
         owner: context.repo.owner,
