@@ -9,7 +9,7 @@ type PullRequest = components['schemas']['pull-request'];
 type OctokitType = ReturnType<typeof getOctokit>;
 
 const ORGANIZATION = 'apify';
-const PARENT_TEAM_SLUG = 'platform-team';
+const PARENT_TEAM_SLUG = 'platform-engineering';
 
 /**
  * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.

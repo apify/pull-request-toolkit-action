@@ -33,7 +33,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.fillCurrentMilestone = exports.assignPrCreator = exports.findMilestone = exports.findUsersTeamName = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const ORGANIZATION = 'apify';
-const PARENT_TEAM_SLUG = 'platform-team';
+const PARENT_TEAM_SLUG = 'platform-engineering';
 /**
  * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.
  */
