@@ -1,5 +1,8 @@
 import { components } from '@octokit/openapi-types/types.d';
-import { findMilestone } from './helpers';
+import {
+    findCurrentTeamMilestone,
+    getTeamLabelName,
+} from './helpers';
 
 type Milestone = components['schemas']['milestone'];
 
@@ -20,7 +23,7 @@ const BASE_MILESTONE = {
     creator: null,
 };
 
-describe('findMilestone', () => {
+describe('findCurrentTeamMilestone', () => {
     test('selects correct milestone based on a team name', () => {
         const milestones: Milestone[] = [
             {
@@ -42,7 +45,7 @@ describe('findMilestone', () => {
                 due_on: (new Date(Date.now() + 24 * 3600 * 1000)).toISOString(), // Must be in the future
             },
         ];
-        const foundMilestone = findMilestone(milestones, 'Platform');
+        const foundMilestone = findCurrentTeamMilestone(milestones, 'Platform');
         expect(foundMilestone?.title).toBe('14th Sprint - Platform team');
     });
 
@@ -55,7 +58,7 @@ describe('findMilestone', () => {
                 due_on: (new Date(Date.now() + 24 * 3600 * 1000)).toISOString(), // Must be in the future
             },
         ];
-        expect(() => findMilestone(milestones, 'Platform')).toThrow('Cannot find milestone for "Platform" team');
+        expect(() => findCurrentTeamMilestone(milestones, 'Platform')).toThrow('Cannot find milestone for "Platform" team');
     });
 
     test('ignores past milestones', () => {
@@ -67,6 +70,15 @@ describe('findMilestone', () => {
                 due_on: '2021-05-23T07:00:00Z',
             },
         ];
-        expect(() => findMilestone(milestones, 'Platform')).toThrow('Cannot find milestone for "Platform" team');
+        expect(() => findCurrentTeamMilestone(milestones, 'Platform')).toThrow('Cannot find milestone for "Platform" team');
+    });
+});
+
+describe('getTeamLabelName', () => {
+    test('works correctly for single word', () => {
+        expect(getTeamLabelName('Platform')).toBe('t-platform');
+    });
+    test('works correctly for Cash & Community', () => {
+        expect(getTeamLabelName('Cash & Community')).toBe('t-c&c');
     });
 });
