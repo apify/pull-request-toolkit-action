@@ -1,6 +1,23 @@
 require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
+/***/ 4831:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
+exports.ORGANIZATION = 'apify';
+exports.PARENT_TEAM_SLUG = 'platform-engineering';
+exports.TEAM_LABEL_PREFIX = 't-';
+exports.TEAM_NAME_TO_LABEL = {
+    'Cash & Community': 't-c&c',
+};
+
+
+/***/ }),
+
 /***/ 5008:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -30,24 +47,23 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.fillCurrentMilestone = exports.assignPrCreator = exports.findMilestone = exports.findUsersTeamName = void 0;
+exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
 const core = __importStar(__nccwpck_require__(2186));
-const ORGANIZATION = 'apify';
-const PARENT_TEAM_SLUG = 'platform-engineering';
+const consts_1 = __nccwpck_require__(4831);
 /**
  * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.
  */
 async function findUsersTeamName(orgOctokit, userLogin) {
     const { data: childTeams } = await orgOctokit.rest.teams.listChildInOrg({
-        org: ORGANIZATION,
-        team_slug: PARENT_TEAM_SLUG,
+        org: consts_1.ORGANIZATION,
+        team_slug: consts_1.PARENT_TEAM_SLUG,
     });
     if (!childTeams.length)
         throw new Error('No child teams found!');
     let teamName = null;
     for (const childTeam of childTeams) {
         const { data: members } = await orgOctokit.rest.teams.listMembersInOrg({
-            org: ORGANIZATION,
+            org: consts_1.ORGANIZATION,
             team_slug: childTeam.slug,
         });
         const isMember = members.some((member) => (member === null || member === void 0 ? void 0 : member.login) === userLogin);
@@ -65,7 +81,7 @@ exports.findUsersTeamName = findUsersTeamName;
  * Finds a current milestone for a given team.
  * Milestone name must contain a team name and have correct start and end dates.
  */
-function findMilestone(milestones, teamName) {
+function findCurrentTeamMilestone(milestones, teamName) {
     const now = new Date();
     // All open milestones
     const openMilestones = milestones.filter((milestone) => {
@@ -82,7 +98,7 @@ function findMilestone(milestones, teamName) {
         throw new Error(`Cannot find milestone for "${teamName}" team`);
     return foundMilestone;
 }
-exports.findMilestone = findMilestone;
+exports.findCurrentTeamMilestone = findCurrentTeamMilestone;
 ;
 /**
  * Configures PR assignee to be the same as PR creater.
@@ -111,7 +127,7 @@ async function fillCurrentMilestone(context, octokit, pullRequest, teamName) {
     });
     if (milestones.length === 0)
         throw new Error('No sprint milestone!');
-    const foundMilestone = findMilestone(milestones, teamName);
+    const foundMilestone = findCurrentTeamMilestone(milestones, teamName);
     if (!foundMilestone)
         throw new Error('Cannot find current sprint milestone!');
     await octokit.rest.issues.update({
@@ -123,6 +139,35 @@ async function fillCurrentMilestone(context, octokit, pullRequest, teamName) {
     core.info(`Milestone successfully filled with ${foundMilestone.title}`);
 }
 exports.fillCurrentMilestone = fillCurrentMilestone;
+/**
+ * Converts team name into a label name (t-platform).
+ * Custom mappings can be defined in TEAM_NAME_TO_LABEL constant.
+ */
+function getTeamLabelName(teamName) {
+    return consts_1.TEAM_NAME_TO_LABEL[teamName] || `t-${teamName.toLowerCase()}`;
+}
+exports.getTeamLabelName = getTeamLabelName;
+;
+/**
+ * Assigns team label to the pull request.
+ */
+async function addTeamLabel(context, octokit, pullRequest, teamName) {
+    const teamLabelName = getTeamLabelName(teamName);
+    const { data: labels } = await octokit.rest.issues.listLabelsForRepo({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+    });
+    const isExistingLabel = labels.some((existingLabel) => existingLabel.name === teamLabelName);
+    if (!isExistingLabel)
+        throw new Error(`Team label "${teamLabelName}" of team ${teamName} does not exists!`);
+    await octokit.rest.issues.addLabels({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: pullRequest.number,
+        labels: [{ name: teamLabelName }],
+    });
+}
+exports.addTeamLabel = addTeamLabel;
 
 
 /***/ }),
@@ -185,6 +230,10 @@ async function run() {
             await (0, helpers_1.assignPrCreator)(github.context, repoOctokit, pullRequest);
         if (!pullRequestContext.milestone)
             await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
+        console.log(pullRequestContext);
+        throw new Error('test');
+        // const teamLabel = pullRequestContext.labels.find((label: string) => label.startsWith(TEAM_LABEL_PREFIX));
+        // if (!teamLabel) await assignPrCreator(github.context, repoOctokit, pullRequest);
     }
     catch (error) {
         if (error instanceof Error) {
