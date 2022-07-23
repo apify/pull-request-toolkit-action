@@ -5,6 +5,7 @@ import {
     assignPrCreator,
     fillCurrentMilestone,
     findUsersTeamName,
+    addTeamLabel,
 } from './helpers';
 import { TEAM_LABEL_PREFIX } from './consts';
 
@@ -41,7 +42,7 @@ async function run(): Promise<void> {
         if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
 
         const teamLabel = pullRequestContext.labels.find((label: any) => label.name.startsWith(TEAM_LABEL_PREFIX));
-        if (!teamLabel) await assignPrCreator(github.context, repoOctokit, pullRequest);
+        if (!teamLabel) await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
     } catch (error) {
         if (error instanceof Error) {
             core.error(error);
