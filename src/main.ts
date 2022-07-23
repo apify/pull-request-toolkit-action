@@ -40,7 +40,7 @@ async function run(): Promise<void> {
 
         if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
 
-        console.log(pullRequestContext);
+        console.log(pullRequestContext.labels);
         throw new Error('test');
 
         // const teamLabel = pullRequestContext.labels.find((label: string) => label.startsWith(TEAM_LABEL_PREFIX));
