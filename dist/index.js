@@ -204,6 +204,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const helpers_1 = __nccwpck_require__(5008);
+const consts_1 = __nccwpck_require__(4831);
 async function run() {
     try {
         // Octokit configured with repository token - this can be used to modify pull-request.
@@ -230,10 +231,9 @@ async function run() {
             await (0, helpers_1.assignPrCreator)(github.context, repoOctokit, pullRequest);
         if (!pullRequestContext.milestone)
             await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
-        console.log(pullRequestContext);
-        throw new Error('test');
-        // const teamLabel = pullRequestContext.labels.find((label: string) => label.startsWith(TEAM_LABEL_PREFIX));
-        // if (!teamLabel) await assignPrCreator(github.context, repoOctokit, pullRequest);
+        const teamLabel = pullRequestContext.labels.find((label) => label.name.startsWith(consts_1.TEAM_LABEL_PREFIX));
+        if (!teamLabel)
+            await (0, helpers_1.addTeamLabel)(github.context, repoOctokit, pullRequest, teamName);
     }
     catch (error) {
         if (error instanceof Error) {
