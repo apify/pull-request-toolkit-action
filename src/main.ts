@@ -5,9 +5,12 @@ import {
     assignPrCreator,
     fillCurrentMilestone,
     findUsersTeamName,
+    addTeamLabel,
 } from './helpers';
+import { TEAM_LABEL_PREFIX } from './consts';
 
 type Assignee = components['schemas']['simple-user'];
+type Label = components['schemas']['label'];
 
 async function run(): Promise<void> {
     try {
@@ -38,6 +41,9 @@ async function run(): Promise<void> {
         if (!isCreatorAssigned) await assignPrCreator(github.context, repoOctokit, pullRequest);
 
         if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
+
+        const teamLabel = pullRequestContext.labels.find((label: Label) => label.name.startsWith(TEAM_LABEL_PREFIX));
+        if (!teamLabel) await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
     } catch (error) {
         if (error instanceof Error) {
             core.error(error);

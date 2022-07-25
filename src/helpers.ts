@@ -3,13 +3,16 @@ import { type getOctokit } from '@actions/github';
 import { components } from '@octokit/openapi-types/types.d';
 import { Context } from '@actions/github/lib/context.d';
 
+import {
+    ORGANIZATION,
+    PARENT_TEAM_SLUG,
+    TEAM_NAME_TO_LABEL,
+} from './consts';
+
 type Milestone = components['schemas']['milestone'];
 type PullRequest = components['schemas']['pull-request'];
 
 type OctokitType = ReturnType<typeof getOctokit>;
-
-const ORGANIZATION = 'apify';
-const PARENT_TEAM_SLUG = 'platform-engineering';
 
 /**
  * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.
@@ -43,7 +46,7 @@ export async function findUsersTeamName(orgOctokit: OctokitType, userLogin: stri
  * Finds a current milestone for a given team.
  * Milestone name must contain a team name and have correct start and end dates.
  */
-export function findMilestone(milestones: Milestone[], teamName: string): Milestone {
+export function findCurrentTeamMilestone(milestones: Milestone[], teamName: string): Milestone {
     const now = new Date();
 
     // All open milestones
@@ -91,7 +94,7 @@ export async function fillCurrentMilestone(context: Context, octokit: OctokitTyp
     });
     if (milestones.length === 0) throw new Error('No sprint milestone!');
 
-    const foundMilestone = findMilestone(milestones, teamName);
+    const foundMilestone = findCurrentTeamMilestone(milestones, teamName);
     if (!foundMilestone) throw new Error('Cannot find current sprint milestone!');
 
     await octokit.rest.issues.update({
@@ -101,4 +104,33 @@ export async function fillCurrentMilestone(context: Context, octokit: OctokitTyp
         milestone: foundMilestone.number,
     });
     core.info(`Milestone successfully filled with ${foundMilestone.title}`);
+}
+
+/**
+ * Converts team name into a label name (t-platform).
+ * Custom mappings can be defined in TEAM_NAME_TO_LABEL constant.
+ */
+export function getTeamLabelName(teamName: string): string {
+    return TEAM_NAME_TO_LABEL[teamName] || `t-${teamName.toLowerCase()}`;
+};
+
+/**
+ * Assigns team label to the pull request.
+ */
+export async function addTeamLabel(context: Context, octokit: OctokitType, pullRequest: PullRequest, teamName: string): Promise<void> {
+    const teamLabelName = getTeamLabelName(teamName);
+
+    const { data: labels } = await octokit.rest.issues.listLabelsForRepo({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+    });
+    const isExistingLabel = labels.some((existingLabel) => existingLabel.name === teamLabelName);
+    if (!isExistingLabel) throw new Error(`Team label "${teamLabelName}" of team ${teamName} does not exists!`);
+
+    await octokit.rest.issues.addLabels({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: pullRequest.number,
+        labels: [teamLabelName],
+    });
 }

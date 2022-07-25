@@ -1,18 +1,19 @@
 # Pull request toolkit
 
-This action automates a couple of processes connected with a management of Github pull requests.
+This action automates a couple of processes connected with the management of Github pull requests.
 
 # What it does
 
-- Assigns PR to the its creater
-- Fills missing milestone with a current milestone from Zenhub
+- Assigns PR to its creator.
+- Fills missing milestone with a current milestone from Zenhub.
+- Assigns a team label (`t-[teamName]`) to the pull request.
 
 ## Wishlist / TODOs
 
-- Make sure that pull request has either issue assigned (using the Zenhub issue-PR connection) or has estimate and labels set.
-- Github action for a publishing of a new version.
+- Make sure that the pull request has either issue assigned (using the Zenhub issue-PR connection) or has an estimate and labels set.
+- Github action for publishing of a new version.
 - Github action for lint and tests execution.
-- Use Docker image with runtime typescript compilation instead of commiting a dist directory.
+- Use Docker image with runtime typescript compilation instead of committing a dist directory.
 
 # Action input
 
