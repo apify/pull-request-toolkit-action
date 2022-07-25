@@ -123,9 +123,8 @@ export async function addTeamLabel(context: Context, octokit: OctokitType, pullR
     const { data: labels } = await octokit.rest.issues.listLabelsForRepo({
         owner: context.repo.owner,
         repo: context.repo.repo,
+        per_page: 100, // Max
     });
-
-    console.log(labels);
 
     const isExistingLabel = labels.some((existingLabel) => existingLabel.name === teamLabelName);
     if (!isExistingLabel) throw new Error(`Team label "${teamLabelName}" of team ${teamName} does not exists!`);
