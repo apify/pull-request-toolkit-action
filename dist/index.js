@@ -9,7 +9,7 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
 exports.ORGANIZATION = 'apify';
-exports.PARENT_TEAM_SLUG = 'platform-engineering';
+exports.PARENT_TEAM_SLUG = 'product-engineering';
 exports.TEAM_LABEL_PREFIX = 't-';
 exports.TEAM_NAME_TO_LABEL = {
     'Cash & Community': 't-c&c',

@@ -1,6 +1,6 @@
 export const ORGANIZATION = 'apify';
 
-export const PARENT_TEAM_SLUG = 'platform-engineering';
+export const PARENT_TEAM_SLUG = 'product-engineering';
 
 export const TEAM_LABEL_PREFIX = 't-';
 
