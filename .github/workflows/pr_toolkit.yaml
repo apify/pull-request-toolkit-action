@@ -4,6 +4,11 @@ on:
   pull_request:
     branches:
       - main
+    types: ['labeled', 'unlabeled', 'opened', 'edited']
+
+concurrency: # This is to make sure that it's executed only for the most recent changes of PR.
+  group: ${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   apify-pr-toolkit:
