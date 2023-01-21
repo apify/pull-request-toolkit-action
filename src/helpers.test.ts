@@ -1,9 +1,9 @@
-import { getOctokit } from '@actions/github';
+// import { getOctokit } from '@actions/github';
 import { components } from '@octokit/openapi-types/types.d';
 import {
     findCurrentTeamMilestone,
     getTeamLabelName,
-    ensureCorrectLinkingAndEstimates,
+    // ensureCorrectLinkingAndEstimates,
     getLinkedIssue,
     getLinkedEpics,
     ZenhubTimelineItem,
