@@ -188,6 +188,41 @@ async function queryZenhubGraphql(operationName, query, variables) {
         data: { query, variables, operationName },
     });
 }
+const ZENHUB_PR_DETAILS_QUERY = `
+query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
+    issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
+        id
+        repository {
+            id
+            ghId
+        }
+        number
+        title
+        body
+        state
+        timelineItems(first: 100) {
+            nodes {
+                type: key
+                id
+                data
+                createdAt
+            }
+        }
+        estimate {
+            value
+        }
+    }
+}
+`;
+const ZENHUB_ISSUE_ESTIMATE_QUERY = `
+query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
+    issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
+        estimate {
+            value
+        }
+    }
+}
+`;
 /**
  * Makes sure that:
  * - PR either has issue or epic linked or has `adhoc` label
@@ -195,32 +230,7 @@ async function queryZenhubGraphql(operationName, query, variables) {
  */
 async function ensureCorrectLinkingAndEstimates(pullRequest, octokit) {
     var _a, _b, _c;
-    const pullRequestGraphqlResponse = await queryZenhubGraphql('getIssueInfo', `
-        query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
-            issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
-                id
-                repository {
-                    id
-                    ghId
-                }
-                number
-                title
-                body
-                state
-                timelineItems(first: 100) {
-                    nodes {
-                        type: key
-                        id
-                        data
-                        createdAt
-                    }
-                }
-                estimate {
-                    value
-                }
-            }
-        }
-    `, {
+    const pullRequestGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_PR_DETAILS_QUERY, {
         repositoryGhId: (_a = pullRequest.head.repo) === null || _a === void 0 ? void 0 : _a.id,
         issueNumber: pullRequest.number,
         workspaceId: consts_1.ZENHUB_WORKSPACE_ID,
@@ -236,15 +246,7 @@ async function ensureCorrectLinkingAndEstimates(pullRequest, octokit) {
         await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request!', octokit);
     if (!linkedIssue)
         return;
-    const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', `
-        query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
-            issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
-                estimate {
-                    value
-                }
-            }
-        }
-    `, {
+    const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
         repositoryGhId: pullRequestGraphqlResponse.data.data.issueByInfo.repository.ghId,
         issueNumber: linkedIssue.number,
         workspaceId: consts_1.ZENHUB_WORKSPACE_ID,

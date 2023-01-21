@@ -173,38 +173,50 @@ async function queryZenhubGraphql(operationName: string, query: string, variable
     });
 }
 
+const ZENHUB_PR_DETAILS_QUERY = `
+query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
+    issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
+        id
+        repository {
+            id
+            ghId
+        }
+        number
+        title
+        body
+        state
+        timelineItems(first: 100) {
+            nodes {
+                type: key
+                id
+                data
+                createdAt
+            }
+        }
+        estimate {
+            value
+        }
+    }
+}
+`;
+
+const ZENHUB_ISSUE_ESTIMATE_QUERY = `
+query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
+    issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
+        estimate {
+            value
+        }
+    }
+}
+`;
+
 /**
  * Makes sure that:
  * - PR either has issue or epic linked or has `adhoc` label
  * - either PR or linked issue has estimate
  */
 export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest, octokit: OctokitType): Promise<void> {
-    const pullRequestGraphqlResponse = await queryZenhubGraphql('getIssueInfo', `
-        query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
-            issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
-                id
-                repository {
-                    id
-                    ghId
-                }
-                number
-                title
-                body
-                state
-                timelineItems(first: 100) {
-                    nodes {
-                        type: key
-                        id
-                        data
-                        createdAt
-                    }
-                }
-                estimate {
-                    value
-                }
-            }
-        }
-    `, {
+    const pullRequestGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_PR_DETAILS_QUERY, {
         repositoryGhId: pullRequest.head.repo?.id,
         issueNumber: pullRequest.number,
         workspaceId: ZENHUB_WORKSPACE_ID,
@@ -223,15 +235,7 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
     if (!linkedIssue && !pullRequestEstimate) await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request!', octokit);
     if (!linkedIssue) return;
 
-    const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', `
-        query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
-            issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
-                estimate {
-                    value
-                }
-            }
-        }
-    `, {
+    const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
         repositoryGhId: pullRequestGraphqlResponse.data.data.issueByInfo.repository.ghId,
         issueNumber: linkedIssue.number,
         workspaceId: ZENHUB_WORKSPACE_ID,
