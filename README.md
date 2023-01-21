@@ -10,17 +10,17 @@ This action automates a couple of processes connected with the management of Git
 
 ## Wishlist / TODOs
 
-- Make sure that the pull request has either issue assigned (using the Zenhub issue-PR connection) or has an estimate and labels set.
 - Github action for publishing of a new version.
 - Github action for lint and tests execution.
 - Use Docker image with runtime typescript compilation instead of committing a dist directory.
 
 # Action input
 
-| Name         | Description                                        | Example        | Required |
-| -------------| -------------------------------------------------- | ---------------| -------- |
-| `repo-token` | Repository Github token                            | `github-token` |      yes |
-| `org-token`  | Github token with read only access to organization | `github-token` |      yes |
+| Name           | Description                                        | Example        | Required |
+| ---------------| -------------------------------------------------- | ---------------| -------- |
+| `repo-token`   | Repository Github token                            | `github-token` |      yes |
+| `org-token`    | Github token with read only access to organization | `github-token` |      yes |
+| `zenhub-token` | Github token with read only access to organization | `zenhub-token` |      yes |
 
 # Example usage
 
@@ -48,6 +48,7 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           org-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_GITHUB_TOKEN }}
+          zenhub-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_ZENHUB_TOKEN }}
 ```
 
 # Contribution

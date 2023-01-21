@@ -1,7 +1,12 @@
+import { getOctokit } from '@actions/github';
 import { components } from '@octokit/openapi-types/types.d';
 import {
     findCurrentTeamMilestone,
     getTeamLabelName,
+    ensureCorrectLinkingAndEstimates,
+    getLinkedIssue,
+    getLinkedEpics,
+    ZenhubTimelineItem,
 } from './helpers';
 
 type Milestone = components['schemas']['milestone'];
@@ -82,3 +87,46 @@ describe('getTeamLabelName', () => {
         expect(getTeamLabelName('Cash & Community')).toBe('t-c&c');
     });
 });
+
+describe('ZenHub events extractors', () => {
+    const TEST_EVENTS = require('./mocks/zenhub_events.json') as ZenhubTimelineItem[]; // eslint-disable-line
+
+    test('getLinkedIssue', () => {
+        expect(getLinkedIssue(TEST_EVENTS)).toEqual({
+            id: 258575726,
+            type: 'GithubIssue',
+            state: 'open',
+            title: 'Dependency Dashboard',
+            number: 493,
+        });
+    });
+    test('getLinkedEpics', () => {
+        expect(getLinkedEpics(TEST_EVENTS)).toEqual([
+            {
+                id: 258519658,
+                type: 'GithubIssue',
+                state: 'closed',
+                title: 'Prepare web codebase for DARK MODE',
+                number: 9417,
+            },
+            {
+                id: 258519859,
+                type: 'GithubIssue',
+                state: 'open',
+                title: 'AppMixer: Airtable',
+                number: 9419,
+            },
+        ]);
+    });
+});
+
+// mtrunkat: I use this one to test the action locally.
+/*
+describe('ensureCorrectLinkingAndEstimates', () => {
+    test('works correctly with a PR', async () => {
+        const pullRequest = require('./mocks/pull_request.json'); // eslint-disable-line
+
+        await ensureCorrectLinkingAndEstimates(pullRequest, getOctokit('xxx'));
+    });
+});
+*/

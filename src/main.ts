@@ -6,6 +6,7 @@ import {
     fillCurrentMilestone,
     findUsersTeamName,
     addTeamLabel,
+    ensureCorrectLinkingAndEstimates,
 } from './helpers';
 import { TEAM_LABEL_PREFIX } from './consts';
 
@@ -44,6 +45,8 @@ async function run(): Promise<void> {
 
         const teamLabel = pullRequestContext.labels.find((label: Label) => label.name.startsWith(TEAM_LABEL_PREFIX));
         if (!teamLabel) await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
+
+        await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit);
     } catch (error) {
         if (error instanceof Error) {
             core.error(error);
