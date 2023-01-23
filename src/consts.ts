@@ -9,3 +9,5 @@ export const TEAM_LABEL_PREFIX = 't-';
 export const TEAM_NAME_TO_LABEL: { [name: string]: string} = {
     'Cash & Community': 't-c&c',
 };
+
+export const DRY_RUN_SLEEP_MINS = 2;

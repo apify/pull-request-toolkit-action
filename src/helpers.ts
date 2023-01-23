@@ -215,7 +215,7 @@ query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
  * - PR either has issue or epic linked or has `adhoc` label
  * - either PR or linked issue has estimate
  */
-export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest, octokit: OctokitType): Promise<void> {
+export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest, octokit: OctokitType, isDryRun: boolean): Promise<void> {
     const pullRequestGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_PR_DETAILS_QUERY, {
         repositoryGhId: pullRequest.head.repo?.id,
         issueNumber: pullRequest.number,
@@ -230,9 +230,11 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
         !linkedIssue
         && linkedEpics.length === 0
         && !pullRequest.labels.some(({ name }) => name === 'adhoc')
-    ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!', octokit);
+    ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!', octokit, isDryRun);
 
-    if (!linkedIssue && !pullRequestEstimate) await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request!', octokit);
+    if (!linkedIssue && !pullRequestEstimate) {
+        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request!', octokit, isDryRun);
+    }
     if (!linkedIssue) return;
 
     const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
@@ -242,22 +244,25 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
     });
     const issueEstimate = issueGraphqlResponse.data.data.issueByInfo.estimate?.value;
 
-    if (!pullRequestEstimate && !issueEstimate) await fail(pullRequest, 'None of the pull request and linked issue has estimate', octokit);
+    if (!pullRequestEstimate && !issueEstimate) await fail(pullRequest, 'None of the pull request and linked issue has estimate', octokit, isDryRun);
 };
 
 /**
  * Adds a comment describing what is wrong with the pull request setup and then fails the action.
+ * Comment is not send if isDryRun=false.
  */
-export async function fail(pullRequest: PullRequest, errorMessage: string, octokit: OctokitType): Promise<void> {
+export async function fail(pullRequest: PullRequest, errorMessage: string, octokit: OctokitType, isDryRun = false): Promise<void> {
     if (!pullRequest.head.repo) throw new Error('Unknown repo!');
 
-    await octokit.rest.pulls.createReview({
-        owner: ORGANIZATION,
-        repo: pullRequest.head.repo.name,
-        pull_number: pullRequest.number,
-        body: `⚠️ [Pull Request Tookit](https://github.com/apify/pull-request-toolkit-action) has failed!\n\n> ${errorMessage}`,
-        event: 'COMMENT',
-    });
+    if (!isDryRun) {
+        await octokit.rest.pulls.createReview({
+            owner: ORGANIZATION,
+            repo: pullRequest.head.repo.name,
+            pull_number: pullRequest.number,
+            body: `⚠️ [Pull Request Tookit](https://github.com/apify/pull-request-toolkit-action) has failed!\n\n> ${errorMessage}`,
+            event: 'COMMENT',
+        });
+    }
 
     throw new Error(errorMessage);
 }
