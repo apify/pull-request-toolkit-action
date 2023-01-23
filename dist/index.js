@@ -261,7 +261,7 @@ exports.ensureCorrectLinkingAndEstimates = ensureCorrectLinkingAndEstimates;
 ;
 /**
  * Adds a comment describing what is wrong with the pull request setup and then fails the action.
- * Comment is not send if isDryRun=false.
+ * Comment is not send if isDryRun=true. Only error is thrown in such case.
  */
 async function fail(pullRequest, errorMessage, octokit, isDryRun = false) {
     if (!pullRequest.head.repo)
@@ -384,7 +384,7 @@ async function run() {
             console.log('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
             console.log(err);
             console.log(`Sleeping for ${consts_1.DRY_RUN_SLEEP_MINS} minutes`);
-            await new Promise((resolve) => setTimeout(resolve, consts_1.DRY_RUN_SLEEP_MINS * 60.000));
+            await new Promise((resolve) => setTimeout(() => resolve, consts_1.DRY_RUN_SLEEP_MINS * 60.000));
             await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, false);
         }
     }
