@@ -55,7 +55,7 @@ async function run(): Promise<void> {
             console.log('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
             console.log(err);
             console.log(`Sleeping for ${DRY_RUN_SLEEP_MINS} minutes`);
-            await new Promise((resolve) => setTimeout(resolve, DRY_RUN_SLEEP_MINS * 60.000));
+            await new Promise((resolve) => setTimeout(() => resolve, DRY_RUN_SLEEP_MINS * 60.000));
 
             await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, false);
         }
