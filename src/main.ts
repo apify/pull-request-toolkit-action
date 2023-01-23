@@ -56,7 +56,7 @@ async function run(): Promise<void> {
             console.log(err);
             console.log(`Sleeping for ${DRY_RUN_SLEEP_MINS} minutes`);
             await new Promise((resolve) => setTimeout(() => resolve, DRY_RUN_SLEEP_MINS * 60.000));
-
+            console.log('Running check again');
             await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, false);
         }
     } catch (error) {
