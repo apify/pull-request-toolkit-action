@@ -230,7 +230,7 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
         !linkedIssue
         && linkedEpics.length === 0
         && !pullRequest.labels.some(({ name }) => name === 'adhoc')
-    ) await fail(pullRequest, `⚠️ [Pull Request Tookit](https://github.com/apify/pull-request-toolkit-action) has failed!\n\n> Pull request is neither linked to an issue or epic nor labeled as adhoc!`, octokit);
+    ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!', octokit);
 
     if (!linkedIssue && !pullRequestEstimate) await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request!', octokit);
     if (!linkedIssue) return;
@@ -255,7 +255,7 @@ export async function fail(pullRequest: PullRequest, errorMessage: string, octok
         owner: ORGANIZATION,
         repo: pullRequest.head.repo.name,
         pull_number: pullRequest.number,
-        body: errorMessage,
+        body: `⚠️ [Pull Request Tookit](https://github.com/apify/pull-request-toolkit-action) has failed!\n\n> ${errorMessage}`,
         event: 'COMMENT',
     });
 
