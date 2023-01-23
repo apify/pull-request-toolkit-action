@@ -266,12 +266,12 @@ export async function fail(pullRequest: PullRequest, errorMessage: string, octok
  * Processes a track record of ZenHub events for a PR and returns an issue that is currently linked to the PR.
  */
 export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssue | undefined {
-    const connectPrTimelintItems = timelineItems.filter(
+    const connectPrTimelineItems = timelineItems.filter(
         (item) => ['issue.disconnect_pr_from_issue', 'issue.connect_pr_to_issue'].includes(item.type),
     );
-    connectPrTimelintItems.sort((a, b) => (new Date(a.createdAt).getTime()) - (new Date(b.createdAt).getTime()));
+    connectPrTimelineItems.sort((a, b) => (new Date(a.createdAt).getTime()) - (new Date(b.createdAt).getTime()));
 
-    const lastItem = connectPrTimelintItems.pop();
+    const lastItem = connectPrTimelineItems.pop();
     if (!lastItem || lastItem.type as string === 'issue.disconnect_pr_from_issue') return;
 
     return lastItem.data.issue;
