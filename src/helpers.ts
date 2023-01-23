@@ -249,7 +249,7 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
 
 /**
  * Adds a comment describing what is wrong with the pull request setup and then fails the action.
- * Comment is not send if isDryRun=false.
+ * Comment is not send if isDryRun=true. Only error is thrown in such case.
  */
 export async function fail(pullRequest: PullRequest, errorMessage: string, octokit: OctokitType, isDryRun = false): Promise<void> {
     if (!pullRequest.head.repo) throw new Error('Unknown repo!');
