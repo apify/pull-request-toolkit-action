@@ -1,3 +1,4 @@
+# For more info see: https://github.com/apify/pull-request-toolkit-action/
 name: Apify PR toolkit
 
 on:

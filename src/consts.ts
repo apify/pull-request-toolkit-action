@@ -11,3 +11,5 @@ export const TEAM_NAME_TO_LABEL: { [name: string]: string} = {
 };
 
 export const DRY_RUN_SLEEP_MINS = 2;
+
+export const TEAMS_NOT_USING_ZENHUB = ['Tooling'];

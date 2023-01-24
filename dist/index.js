@@ -7,7 +7,7 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DRY_RUN_SLEEP_MINS = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
+exports.TEAMS_NOT_USING_ZENHUB = exports.DRY_RUN_SLEEP_MINS = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
 exports.ORGANIZATION = 'apify';
 exports.PARENT_TEAM_SLUG = 'product-engineering';
 exports.ZENHUB_WORKSPACE_ID = '5f6454160d9f82000fa6733f';
@@ -16,6 +16,7 @@ exports.TEAM_NAME_TO_LABEL = {
     'Cash & Community': 't-c&c',
 };
 exports.DRY_RUN_SLEEP_MINS = 2;
+exports.TEAMS_NOT_USING_ZENHUB = ['Tooling'];
 
 
 /***/ }),
@@ -369,16 +370,18 @@ async function run() {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
+        const isTeamUsingZenhub = !consts_1.TEAMS_NOT_USING_ZENHUB.includes(teamName);
         const isCreatorAssigned = pullRequestContext.assignees.find((u) => (u === null || u === void 0 ? void 0 : u.login) === pullRequestContext.user.login);
         if (!isCreatorAssigned)
             await (0, helpers_1.assignPrCreator)(github.context, repoOctokit, pullRequest);
-        if (!pullRequestContext.milestone)
+        if (!pullRequestContext.milestone && isTeamUsingZenhub)
             await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
         const teamLabel = pullRequestContext.labels.find((label) => label.name.startsWith(consts_1.TEAM_LABEL_PREFIX));
         if (!teamLabel)
             await (0, helpers_1.addTeamLabel)(github.context, repoOctokit, pullRequest, teamName);
         try {
-            await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, true);
+            if (isTeamUsingZenhub)
+                await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, true);
         }
         catch (err) {
             console.log('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
