@@ -7,20 +7,23 @@ This action automates a couple of processes connected with the management of Git
 - Assigns PR to its creator.
 - Fills missing milestone with a current milestone from Zenhub.
 - Assigns a team label (`t-[teamName]`) to the pull request.
+- Makes sure that:
+  - PR is either linked with epic or issue or labeled as `adhoc`
+  - PR itself or linked issue is estimated
 
 ## Wishlist / TODOs
 
-- Make sure that the pull request has either issue assigned (using the Zenhub issue-PR connection) or has an estimate and labels set.
 - Github action for publishing of a new version.
 - Github action for lint and tests execution.
 - Use Docker image with runtime typescript compilation instead of committing a dist directory.
 
 # Action input
 
-| Name         | Description                                        | Example        | Required |
-| -------------| -------------------------------------------------- | ---------------| -------- |
-| `repo-token` | Repository Github token                            | `github-token` |      yes |
-| `org-token`  | Github token with read only access to organization | `github-token` |      yes |
+| Name           | Description                                        | Example        | Required |
+| ---------------| -------------------------------------------------- | ---------------| -------- |
+| `repo-token`   | Repository Github token                            | `github-token` |      yes |
+| `org-token`    | Github token with read only access to organization | `github-token` |      yes |
+| `zenhub-token` | Github token with read only access to organization | `zenhub-token` |      yes |
 
 # Example usage
 
@@ -48,6 +51,7 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           org-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_GITHUB_TOKEN }}
+          zenhub-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_ZENHUB_TOKEN }}
 ```
 
 # Contribution
@@ -56,4 +60,4 @@ jobs:
 2. Run `npm i`
 3. Run `npm run all`
 4. Commit all changes including `./disc` folder with built code.
-5. Publish a new version of action using new release (It needs to be done manually)
+5. Publish a new version of an action using the new release (It needs to be done manually)

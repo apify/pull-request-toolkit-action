@@ -1,3 +1,4 @@
+import axios from 'axios';
 import * as core from '@actions/core';
 import { type getOctokit } from '@actions/github';
 import { components } from '@octokit/openapi-types/types.d';
@@ -7,12 +8,31 @@ import {
     ORGANIZATION,
     PARENT_TEAM_SLUG,
     TEAM_NAME_TO_LABEL,
+    ZENHUB_WORKSPACE_ID,
 } from './consts';
 
 type Milestone = components['schemas']['milestone'];
 type PullRequest = components['schemas']['pull-request'];
 
 type OctokitType = ReturnType<typeof getOctokit>;
+
+type ZenhubIssue = {
+    id: number,
+    type: string,
+    state: string,
+    title: string,
+    number: number,
+}
+
+export type ZenhubTimelineItem = {
+    id: string,
+    type: string,
+    createdAt: Date,
+    issue: object,
+    data: {
+        issue: ZenhubIssue,
+    },
+};
 
 /**
  * Iterates over child teams of a team PARENT_TEAM_SLUG and returns team name where user belongs to.
@@ -92,10 +112,10 @@ export async function fillCurrentMilestone(context: Context, octokit: OctokitTyp
         owner: context.repo.owner,
         repo: context.repo.repo,
     });
-    if (milestones.length === 0) throw new Error('No sprint milestone!');
+    if (milestones.length === 0) await fail(pullRequest, 'No sprint milestone!', octokit);
 
     const foundMilestone = findCurrentTeamMilestone(milestones, teamName);
-    if (!foundMilestone) throw new Error('Cannot find current sprint milestone!');
+    if (!foundMilestone) await fail(pullRequest, 'Cannot find current sprint milestone!', octokit);
 
     await octokit.rest.issues.update({
         owner: context.repo.owner,
@@ -127,7 +147,7 @@ export async function addTeamLabel(context: Context, octokit: OctokitType, pullR
     });
 
     const isExistingLabel = labels.some((existingLabel) => existingLabel.name === teamLabelName);
-    if (!isExistingLabel) throw new Error(`Team label "${teamLabelName}" of team ${teamName} does not exists!`);
+    if (!isExistingLabel) await fail(pullRequest, `Team label "${teamLabelName}" of team ${teamName} does not exists!`, octokit);
 
     await octokit.rest.issues.addLabels({
         owner: context.repo.owner,
@@ -136,3 +156,150 @@ export async function addTeamLabel(context: Context, octokit: OctokitType, pullR
         labels: [teamLabelName],
     });
 }
+
+/**
+ * Sends a query to ZenHub GraphQL API server using Axios client.
+ */
+async function queryZenhubGraphql(operationName: string, query: string, variables: object) {
+    const zenhubToken = core.getInput('zenhub-token');
+
+    return axios({
+        method: 'post',
+        url: 'https://api.zenhub.com/public/graphql',
+        headers: {
+            Authorization: `Bearer ${zenhubToken}`,
+        },
+        data: { query, variables, operationName },
+    });
+}
+
+const ZENHUB_PR_DETAILS_QUERY = `
+query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
+    issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
+        id
+        repository {
+            id
+            ghId
+        }
+        number
+        title
+        body
+        state
+        timelineItems(first: 100) {
+            nodes {
+                type: key
+                id
+                data
+                createdAt
+            }
+        }
+        estimate {
+            value
+        }
+    }
+}
+`;
+
+const ZENHUB_ISSUE_ESTIMATE_QUERY = `
+query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
+    issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
+        estimate {
+            value
+        }
+    }
+}
+`;
+
+/**
+ * Makes sure that:
+ * - PR either has issue or epic linked or has `adhoc` label
+ * - either PR or linked issue has estimate
+ */
+export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest, octokit: OctokitType, isDryRun: boolean): Promise<void> {
+    const pullRequestGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_PR_DETAILS_QUERY, {
+        repositoryGhId: pullRequest.head.repo?.id,
+        issueNumber: pullRequest.number,
+        workspaceId: ZENHUB_WORKSPACE_ID,
+    });
+
+    const pullRequestEstimate = pullRequestGraphqlResponse.data.data.issueByInfo.estimate?.value;
+    const linkedIssue = getLinkedIssue(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
+    const linkedEpics = getLinkedEpics(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
+
+    if (
+        !linkedIssue
+        && linkedEpics.length === 0
+        && !pullRequest.labels.some(({ name }) => name === 'adhoc')
+    ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!', octokit, isDryRun);
+
+    if (!linkedIssue && !pullRequestEstimate) {
+        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request!', octokit, isDryRun);
+    }
+    if (!linkedIssue) return;
+
+    const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
+        repositoryGhId: pullRequestGraphqlResponse.data.data.issueByInfo.repository.ghId,
+        issueNumber: linkedIssue.number,
+        workspaceId: ZENHUB_WORKSPACE_ID,
+    });
+    const issueEstimate = issueGraphqlResponse.data.data.issueByInfo.estimate?.value;
+
+    if (!pullRequestEstimate && !issueEstimate) await fail(pullRequest, 'None of the pull request and linked issue has estimate', octokit, isDryRun);
+};
+
+/**
+ * Adds a comment describing what is wrong with the pull request setup and then fails the action.
+ * Comment is not send if isDryRun=true. Only error is thrown in such case.
+ */
+export async function fail(pullRequest: PullRequest, errorMessage: string, octokit: OctokitType, isDryRun = false): Promise<void> {
+    if (!pullRequest.head.repo) throw new Error('Unknown repo!');
+
+    if (!isDryRun) {
+        await octokit.rest.pulls.createReview({
+            owner: ORGANIZATION,
+            repo: pullRequest.head.repo.name,
+            pull_number: pullRequest.number,
+            body: `⚠️ [Pull Request Tookit](https://github.com/apify/pull-request-toolkit-action) has failed!\n\n> ${errorMessage}`,
+            event: 'COMMENT',
+        });
+    }
+
+    throw new Error(errorMessage);
+}
+
+/**
+ * Processes a track record of ZenHub events for a PR and returns an issue that is currently linked to the PR.
+ */
+export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssue | undefined {
+    const connectPrTimelineItems = timelineItems.filter(
+        (item) => ['issue.disconnect_pr_from_issue', 'issue.connect_pr_to_issue'].includes(item.type),
+    );
+    connectPrTimelineItems.sort((a, b) => (new Date(a.createdAt).getTime()) - (new Date(b.createdAt).getTime()));
+
+    const lastItem = connectPrTimelineItems.pop();
+    if (!lastItem || lastItem.type as string === 'issue.disconnect_pr_from_issue') return;
+
+    return lastItem.data.issue;
+};
+
+/**
+ * Processes a track record of ZenHub events for a PR and returns a list of epics that are currently linked to the PR.
+ */
+export function getLinkedEpics(timelineItems: ZenhubTimelineItem[]): ZenhubIssue[] {
+    const connectEpicTimelintItems = timelineItems.filter(
+        (item) => ['issue.remove_issue_from_epic', 'issue.add_issue_to_epic'].includes(item.type),
+    );
+    connectEpicTimelintItems.sort((a, b) => (new Date(a.createdAt).getTime()) - (new Date(b.createdAt).getTime()));
+
+    const connectedEpics: Map<number, ZenhubIssue> = new Map();
+
+    for (const { type, data } of connectEpicTimelintItems) {
+        const { issue } = data;
+
+        if (type === 'issue.add_issue_to_epic') connectedEpics.set(issue.id, issue);
+        else if (type === 'issue.remove_issue_from_epic') connectedEpics.delete(issue.id);
+        else throw new Error('This should have never happened!');
+    }
+
+    return [...connectedEpics.values()];
+};

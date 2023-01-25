@@ -6,8 +6,13 @@ import {
     fillCurrentMilestone,
     findUsersTeamName,
     addTeamLabel,
+    ensureCorrectLinkingAndEstimates,
 } from './helpers';
-import { TEAM_LABEL_PREFIX } from './consts';
+import {
+    TEAM_LABEL_PREFIX,
+    DRY_RUN_SLEEP_MINS,
+    TEAMS_NOT_USING_ZENHUB,
+} from './consts';
 
 type Assignee = components['schemas']['simple-user'];
 type Label = components['schemas']['label'];
@@ -37,13 +42,24 @@ async function run(): Promise<void> {
             return;
         }
 
+        const isTeamUsingZenhub = !TEAMS_NOT_USING_ZENHUB.includes(teamName);
         const isCreatorAssigned = pullRequestContext.assignees.find((u: Assignee) => u?.login === pullRequestContext.user.login);
         if (!isCreatorAssigned) await assignPrCreator(github.context, repoOctokit, pullRequest);
-
-        if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
+        if (!pullRequestContext.milestone && isTeamUsingZenhub) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
 
         const teamLabel = pullRequestContext.labels.find((label: Label) => label.name.startsWith(TEAM_LABEL_PREFIX));
         if (!teamLabel) await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
+
+        try {
+            if (isTeamUsingZenhub) await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true);
+        } catch (err) {
+            console.log('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
+            console.log(err);
+            console.log(`Sleeping for ${DRY_RUN_SLEEP_MINS} minutes`);
+            await new Promise((resolve) => setTimeout(resolve, DRY_RUN_SLEEP_MINS * 60000));
+            console.log('Running check again');
+            await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, false);
+        }
     } catch (error) {
         if (error instanceof Error) {
             core.error(error);
