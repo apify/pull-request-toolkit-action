@@ -7,6 +7,9 @@ This action automates a couple of processes connected with the management of Git
 - Assigns PR to its creator.
 - Fills missing milestone with a current milestone from Zenhub.
 - Assigns a team label (`t-[teamName]`) to the pull request.
+- Makes sure that:
+  - PR is either linked with epic or issue or labeled as `adhoc`
+  - PR itself or linked issue is estimated
 
 ## Wishlist / TODOs
 
