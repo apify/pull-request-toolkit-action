@@ -3,3 +3,7 @@ node_modules
 
 # Ignore built ts files
 lib/**/*
+
+.idea
+.DS_Store
+.vscore
