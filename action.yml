@@ -8,6 +8,9 @@ inputs:
     org-token:
         required: true
         description: 'Github token with read only access to organization'
+    zenhub-token:
+        required: true
+        description: 'ZenHub API token'
 runs:
     using: 'node16'
     main: 'dist/index.js'
