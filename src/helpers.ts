@@ -254,7 +254,6 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
         issueNumber: linkedIssue.number,
         workspaceId: ZENHUB_WORKSPACE_ID,
     });
-
     const issueEstimate = issueGraphqlResponse.data.data.issueByInfo.estimate?.value;
 
     if (!pullRequestEstimate && !issueEstimate) await fail(pullRequest, 'None of the pull request and linked issue has estimate', octokit, isDryRun);
