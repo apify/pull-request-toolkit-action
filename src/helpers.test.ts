@@ -98,6 +98,11 @@ describe('ZenHub events extractors', () => {
             state: 'open',
             title: 'Dependency Dashboard',
             number: 493,
+            repo: {
+                gh_id: 264953367,
+                id: 132804227,
+                name: 'apify-proxy',
+            },
         });
     });
     test('getLinkedEpics', () => {
@@ -125,8 +130,9 @@ describe('ZenHub events extractors', () => {
 describe('ensureCorrectLinkingAndEstimates', () => {
     test('works correctly with a PR', async () => {
         const pullRequest = require('./mocks/pull_request.json'); // eslint-disable-line
+        const octokit = getOctokit('xxx');
 
-        await ensureCorrectLinkingAndEstimates(pullRequest, getOctokit('xxx'));
+        await ensureCorrectLinkingAndEstimates(pullRequest, octokit, false);
     });
 });
 */

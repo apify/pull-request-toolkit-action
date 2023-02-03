@@ -16,12 +16,22 @@ type PullRequest = components['schemas']['pull-request'];
 
 type OctokitType = ReturnType<typeof getOctokit>;
 
+type ZenhubRepo = {
+    id: number,
+    name: string,
+    gh_id: number,
+};
+
 type ZenhubIssue = {
     id: number,
     type: string,
     state: string,
     title: string,
     number: number,
+}
+
+type ZenhubIssueWithRepo = ZenhubIssue & {
+    repo: ZenhubRepo,
 }
 
 export type ZenhubTimelineItem = {
@@ -31,6 +41,8 @@ export type ZenhubTimelineItem = {
     issue: object,
     data: {
         issue: ZenhubIssue,
+        repository: ZenhubRepo,
+        issue_repository: ZenhubRepo,
     },
 };
 
@@ -238,10 +250,11 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
     if (!linkedIssue) return;
 
     const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
-        repositoryGhId: pullRequestGraphqlResponse.data.data.issueByInfo.repository.ghId,
+        repositoryGhId: linkedIssue.repo.gh_id,
         issueNumber: linkedIssue.number,
         workspaceId: ZENHUB_WORKSPACE_ID,
     });
+
     const issueEstimate = issueGraphqlResponse.data.data.issueByInfo.estimate?.value;
 
     if (!pullRequestEstimate && !issueEstimate) await fail(pullRequest, 'None of the pull request and linked issue has estimate', octokit, isDryRun);
@@ -270,7 +283,7 @@ export async function fail(pullRequest: PullRequest, errorMessage: string, octok
 /**
  * Processes a track record of ZenHub events for a PR and returns an issue that is currently linked to the PR.
  */
-export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssue | undefined {
+export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssueWithRepo | undefined {
     const connectPrTimelineItems = timelineItems.filter(
         (item) => ['issue.disconnect_pr_from_issue', 'issue.connect_pr_to_issue'].includes(item.type),
     );
@@ -279,7 +292,10 @@ export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssue
     const lastItem = connectPrTimelineItems.pop();
     if (!lastItem || lastItem.type as string === 'issue.disconnect_pr_from_issue') return;
 
-    return lastItem.data.issue;
+    return {
+        ...lastItem.data.issue,
+        repo: lastItem.data.issue_repository,
+    };
 };
 
 /**
