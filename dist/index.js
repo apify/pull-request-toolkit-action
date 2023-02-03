@@ -250,7 +250,7 @@ async function ensureCorrectLinkingAndEstimates(pullRequest, octokit, isDryRun) 
     if (!linkedIssue)
         return;
     const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
-        repositoryGhId: pullRequestGraphqlResponse.data.data.issueByInfo.repository.ghId,
+        repositoryGhId: linkedIssue.repo.gh_id,
         issueNumber: linkedIssue.number,
         workspaceId: consts_1.ZENHUB_WORKSPACE_ID,
     });
@@ -288,7 +288,10 @@ function getLinkedIssue(timelineItems) {
     const lastItem = connectPrTimelineItems.pop();
     if (!lastItem || lastItem.type === 'issue.disconnect_pr_from_issue')
         return;
-    return lastItem.data.issue;
+    return {
+        ...lastItem.data.issue,
+        repo: lastItem.data.issue_repository,
+    };
 }
 exports.getLinkedIssue = getLinkedIssue;
 ;
