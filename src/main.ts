@@ -7,11 +7,14 @@ import {
     findUsersTeamName,
     addTeamLabel,
     ensureCorrectLinkingAndEstimates,
+    isPullRequestTested,
 } from './helpers';
 import {
     TEAM_LABEL_PREFIX,
     DRY_RUN_SLEEP_MINS,
     TEAMS_NOT_USING_ZENHUB,
+    ORGANIZATION,
+    TESTED_LABEL_NAME,
 } from './consts';
 
 type Assignee = components['schemas']['simple-user'];
@@ -49,6 +52,16 @@ async function run(): Promise<void> {
 
         const teamLabel = pullRequestContext.labels.find((label: Label) => label.name.startsWith(TEAM_LABEL_PREFIX));
         if (!teamLabel) await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
+
+        const isTested = await isPullRequestTested(repoOctokit, pullRequest);
+        if (!isTested) {
+            await repoOctokit.rest.issues.addLabels({
+                owner: ORGANIZATION,
+                repo: pullRequest.base.repo.name,
+                issue_number: pullRequest.number,
+                labels: [TESTED_LABEL_NAME],
+            });
+        }
 
         try {
             if (isTeamUsingZenhub) await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true);
