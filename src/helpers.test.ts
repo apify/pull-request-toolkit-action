@@ -1,4 +1,4 @@
-// import { getOctokit } from '@actions/github';
+import { getOctokit } from '@actions/github';
 import { components } from '@octokit/openapi-types/types.d';
 import {
     findCurrentTeamMilestone,
@@ -7,6 +7,7 @@ import {
     getLinkedIssue,
     getLinkedEpics,
     ZenhubTimelineItem,
+    isPullRequestTested,
 } from './helpers';
 
 type Milestone = components['schemas']['milestone'];
@@ -125,7 +126,7 @@ describe('ZenHub events extractors', () => {
     });
 });
 
-// mtrunkat: I use this one to test the action locally.
+// mtrunkat: I use these to test the action locally.
 /*
 describe('ensureCorrectLinkingAndEstimates', () => {
     test('works correctly with a PR', async () => {
@@ -133,6 +134,13 @@ describe('ensureCorrectLinkingAndEstimates', () => {
         const octokit = getOctokit('xxx');
 
         await ensureCorrectLinkingAndEstimates(pullRequest, octokit, false);
+    });
+});
+
+describe('isPullRequestTested', () => {
+    test('correctly returns true for tested PR', async () => {
+        const pullRequest = require('./mocks/pull_request.json'); // eslint-disable-line
+        console.log(await isPullRequestTested(getOctokit('xxx'), pullRequest));
     });
 });
 */

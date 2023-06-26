@@ -52,11 +52,7 @@ async function run(): Promise<void> {
 
         const teamLabel = pullRequestContext.labels.find((label: Label) => label.name.startsWith(TEAM_LABEL_PREFIX));
         if (!teamLabel) await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
-console.log('aaa');
         const isTested = await isPullRequestTested(repoOctokit, pullRequest);
-        console.log(isTested);
-        console.log(isTested);
-        console.log(isTested);
         if (!isTested) {
             await repoOctokit.rest.issues.addLabels({
                 owner: ORGANIZATION,
@@ -65,7 +61,7 @@ console.log('aaa');
                 labels: [TESTED_LABEL_NAME],
             });
         }
-console.log('bbb');
+
         try {
             if (isTeamUsingZenhub) await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true);
         } catch (err) {
