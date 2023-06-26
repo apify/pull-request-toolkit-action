@@ -7,7 +7,7 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.TEAMS_NOT_USING_ZENHUB = exports.DRY_RUN_SLEEP_MINS = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
+exports.TESTED_LABEL_NAME = exports.TEAMS_NOT_USING_ZENHUB = exports.DRY_RUN_SLEEP_MINS = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
 exports.ORGANIZATION = 'apify';
 exports.PARENT_TEAM_SLUG = 'product-engineering';
 exports.ZENHUB_WORKSPACE_ID = '5f6454160d9f82000fa6733f';
@@ -17,6 +17,7 @@ exports.TEAM_NAME_TO_LABEL = {
 };
 exports.DRY_RUN_SLEEP_MINS = 2;
 exports.TEAMS_NOT_USING_ZENHUB = ['Tooling'];
+exports.TESTED_LABEL_NAME = 'tested';
 
 
 /***/ }),
@@ -53,7 +54,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
+exports.isPullRequestTested = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
 const axios_1 = __importDefault(__nccwpck_require__(8757));
 const core = __importStar(__nccwpck_require__(2186));
 const consts_1 = __nccwpck_require__(4831);
@@ -315,6 +316,28 @@ function getLinkedEpics(timelineItems) {
 }
 exports.getLinkedEpics = getLinkedEpics;
 ;
+/**
+ * Fetches a list of changed files and mark those that contain changes in test files.
+ */
+async function isPullRequestTested(octokit, pullRequest) {
+    const files = await octokit.rest.pulls.listFiles({
+        owner: consts_1.ORGANIZATION,
+        repo: pullRequest.base.repo.name,
+        pull_number: pullRequest.number,
+    });
+    const filePaths = files.data.map((file) => file.filename);
+    const testFilePaths = filePaths.filter((filePath) => {
+        return filePath.includes('/test/')
+            || filePath.includes('/tests/')
+            || filePath.endsWith('.test.js')
+            || filePath.endsWith('.test.ts');
+    });
+    console.log(`${testFilePaths.length} test files found`);
+    console.log(`- ${testFilePaths.join('\n- ')}`);
+    return testFilePaths.length > 0;
+}
+exports.isPullRequestTested = isPullRequestTested;
+;
 
 
 /***/ }),
@@ -382,6 +405,20 @@ async function run() {
         const teamLabel = pullRequestContext.labels.find((label) => label.name.startsWith(consts_1.TEAM_LABEL_PREFIX));
         if (!teamLabel)
             await (0, helpers_1.addTeamLabel)(github.context, repoOctokit, pullRequest, teamName);
+        console.log('aaa');
+        const isTested = await (0, helpers_1.isPullRequestTested)(repoOctokit, pullRequest);
+        console.log(isTested);
+        console.log(isTested);
+        console.log(isTested);
+        if (!isTested) {
+            await repoOctokit.rest.issues.addLabels({
+                owner: consts_1.ORGANIZATION,
+                repo: pullRequest.base.repo.name,
+                issue_number: pullRequest.number,
+                labels: [consts_1.TESTED_LABEL_NAME],
+            });
+        }
+        console.log('bbb');
         try {
             if (isTeamUsingZenhub)
                 await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, true);
