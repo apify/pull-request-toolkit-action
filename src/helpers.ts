@@ -319,6 +319,14 @@ export function getLinkedEpics(timelineItems: ZenhubTimelineItem[]): ZenhubIssue
     return [...connectedEpics.values()];
 };
 
+export function isTestFilePath(filePath: string): boolean {
+    const testFileNameRegex = /(\.|_|\w)*tests?(\.|_|\w)*\.\w{2,3}$/;
+
+    return filePath.includes('/test/')
+        || filePath.includes('/tests/')
+        || testFileNameRegex.test(filePath);
+};
+
 /**
  * Fetches a list of changed files and mark those that contain changes in test files.
  */
@@ -329,12 +337,7 @@ export async function isPullRequestTested(octokit: OctokitType, pullRequest: Pul
         pull_number: pullRequest.number,
     });
     const filePaths = files.data.map((file) => file.filename);
-    const testFileNameRegex = /(\.|_|\w)*tests?(\.|_|\w)*\.\w{2,3}$/;
-    const testFilePaths = filePaths.filter((filePath) => {
-        return filePath.includes('/test/')
-            || filePath.includes('/tests/')
-            || testFileNameRegex.test(filePath);
-    });
+    const testFilePaths = filePaths.filter((filePath) => isTestFilePath(filePath));
 
     console.log(`${testFilePaths.length} test files found`);
     console.log(`- ${testFilePaths.join('\n- ')}`);

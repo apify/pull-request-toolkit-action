@@ -54,7 +54,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isPullRequestTested = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
+exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
 const axios_1 = __importDefault(__nccwpck_require__(8757));
 const core = __importStar(__nccwpck_require__(2186));
 const consts_1 = __nccwpck_require__(4831);
@@ -316,6 +316,14 @@ function getLinkedEpics(timelineItems) {
 }
 exports.getLinkedEpics = getLinkedEpics;
 ;
+function isTestFilePath(filePath) {
+    const testFileNameRegex = /(\.|_|\w)*tests?(\.|_|\w)*\.\w{2,3}$/;
+    return filePath.includes('/test/')
+        || filePath.includes('/tests/')
+        || testFileNameRegex.test(filePath);
+}
+exports.isTestFilePath = isTestFilePath;
+;
 /**
  * Fetches a list of changed files and mark those that contain changes in test files.
  */
@@ -326,12 +334,7 @@ async function isPullRequestTested(octokit, pullRequest) {
         pull_number: pullRequest.number,
     });
     const filePaths = files.data.map((file) => file.filename);
-    const testFilePaths = filePaths.filter((filePath) => {
-        return filePath.includes('/test/')
-            || filePath.includes('/tests/')
-            || filePath.endsWith('.test.js')
-            || filePath.endsWith('.test.ts');
-    });
+    const testFilePaths = filePaths.filter((filePath) => isTestFilePath(filePath));
     console.log(`${testFilePaths.length} test files found`);
     console.log(`- ${testFilePaths.join('\n- ')}`);
     return testFilePaths.length > 0;

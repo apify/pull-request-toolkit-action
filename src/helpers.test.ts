@@ -1,4 +1,4 @@
-import { getOctokit } from '@actions/github';
+// import { getOctokit } from '@actions/github';
 import { components } from '@octokit/openapi-types/types.d';
 import {
     findCurrentTeamMilestone,
@@ -7,7 +7,7 @@ import {
     getLinkedIssue,
     getLinkedEpics,
     ZenhubTimelineItem,
-    isPullRequestTested,
+    isTestFilePath,
 } from './helpers';
 
 type Milestone = components['schemas']['milestone'];
@@ -123,6 +123,32 @@ describe('ZenHub events extractors', () => {
                 number: 9419,
             },
         ]);
+    });
+});
+
+describe('isTestFilePath', () => {
+    test('works with filenames', () => {
+        expect(isTestFilePath('/dasdasd.test.js')).toBe(true);
+        expect(isTestFilePath('asdasdlddd.ahoj.ss')).toBe(false);
+        expect(isTestFilePath('bla.test.py')).toBe(true);
+        expect(isTestFilePath('some-dir/another/test.py')).toBe(true);
+        expect(isTestFilePath('asds/test/test.js')).toBe(true);
+        expect(isTestFilePath('inte')).toBe(false);
+        expect(isTestFilePath('bla.tests.py')).toBe(true);
+        expect(isTestFilePath('testk.py')).toBe(true);
+        expect(isTestFilePath('asds/test/test.js')).toBe(true);
+        expect(isTestFilePath('ahoj.mjs')).toBe(false);
+        expect(isTestFilePath('ahoj/test.mjs')).toBe(true);
+        expect(isTestFilePath('ahoj/zdar/tests.py')).toBe(true);
+        expect(isTestFilePath('my.tests.mjs')).toBe(true);
+        expect(isTestFilePath('ahoj/test_basic.py')).toBe(true);
+        expect(isTestFilePath('simething/jknkjnkj/js')).toBe(false);
+    });
+
+    test('works with directories', () => {
+        expect(isTestFilePath('something/test/something')).toBe(true);
+        expect(isTestFilePath('something/tests/something')).toBe(true);
+        expect(isTestFilePath('something/non-test/something')).toBe(false);
     });
 });
 
