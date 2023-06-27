@@ -329,11 +329,11 @@ export async function isPullRequestTested(octokit: OctokitType, pullRequest: Pul
         pull_number: pullRequest.number,
     });
     const filePaths = files.data.map((file) => file.filename);
+    const testFileNameRegex = /(\.|_|\w)*tests?(\.|_|\w)*\.\w{2,3}$/;
     const testFilePaths = filePaths.filter((filePath) => {
         return filePath.includes('/test/')
             || filePath.includes('/tests/')
-            || filePath.endsWith('.test.js')
-            || filePath.endsWith('.test.ts');
+            || testFileNameRegex.test(filePath);
     });
 
     console.log(`${testFilePaths.length} test files found`);
