@@ -7,6 +7,7 @@ import {
     getLinkedIssue,
     getLinkedEpics,
     ZenhubTimelineItem,
+    isTestFilePath,
 } from './helpers';
 
 type Milestone = components['schemas']['milestone'];
@@ -125,7 +126,33 @@ describe('ZenHub events extractors', () => {
     });
 });
 
-// mtrunkat: I use this one to test the action locally.
+describe('isTestFilePath', () => {
+    test('works with filenames', () => {
+        expect(isTestFilePath('/dasdasd.test.js')).toBe(true);
+        expect(isTestFilePath('asdasdlddd.ahoj.ss')).toBe(false);
+        expect(isTestFilePath('bla.test.py')).toBe(true);
+        expect(isTestFilePath('some-dir/another/test.py')).toBe(true);
+        expect(isTestFilePath('asds/test/test.js')).toBe(true);
+        expect(isTestFilePath('inte')).toBe(false);
+        expect(isTestFilePath('bla.tests.py')).toBe(true);
+        expect(isTestFilePath('testk.py')).toBe(true);
+        expect(isTestFilePath('asds/test/test.js')).toBe(true);
+        expect(isTestFilePath('ahoj.mjs')).toBe(false);
+        expect(isTestFilePath('ahoj/test.mjs')).toBe(true);
+        expect(isTestFilePath('ahoj/zdar/tests.py')).toBe(true);
+        expect(isTestFilePath('my.tests.mjs')).toBe(true);
+        expect(isTestFilePath('ahoj/test_basic.py')).toBe(true);
+        expect(isTestFilePath('simething/jknkjnkj/js')).toBe(false);
+    });
+
+    test('works with directories', () => {
+        expect(isTestFilePath('something/test/something')).toBe(true);
+        expect(isTestFilePath('something/tests/something')).toBe(true);
+        expect(isTestFilePath('something/non-test/something')).toBe(false);
+    });
+});
+
+// mtrunkat: I use these to test the action locally.
 /*
 describe('ensureCorrectLinkingAndEstimates', () => {
     test('works correctly with a PR', async () => {
@@ -133,6 +160,13 @@ describe('ensureCorrectLinkingAndEstimates', () => {
         const octokit = getOctokit('xxx');
 
         await ensureCorrectLinkingAndEstimates(pullRequest, octokit, false);
+    });
+});
+
+describe('isPullRequestTested', () => {
+    test('correctly returns true for tested PR', async () => {
+        const pullRequest = require('./mocks/pull_request.json'); // eslint-disable-line
+        console.log(await isPullRequestTested(getOctokit('xxx'), pullRequest));
     });
 });
 */
