@@ -409,7 +409,7 @@ async function run() {
         if (!teamLabel)
             await (0, helpers_1.addTeamLabel)(github.context, repoOctokit, pullRequest, teamName);
         const isTested = await (0, helpers_1.isPullRequestTested)(repoOctokit, pullRequest);
-        if (!isTested) {
+        if (isTested) {
             await repoOctokit.rest.issues.addLabels({
                 owner: consts_1.ORGANIZATION,
                 repo: pullRequest.base.repo.name,

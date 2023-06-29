@@ -53,7 +53,7 @@ async function run(): Promise<void> {
         const teamLabel = pullRequestContext.labels.find((label: Label) => label.name.startsWith(TEAM_LABEL_PREFIX));
         if (!teamLabel) await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
         const isTested = await isPullRequestTested(repoOctokit, pullRequest);
-        if (!isTested) {
+        if (isTested) {
             await repoOctokit.rest.issues.addLabels({
                 owner: ORGANIZATION,
                 repo: pullRequest.base.repo.name,
