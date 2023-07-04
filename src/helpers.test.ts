@@ -143,6 +143,8 @@ describe('isTestFilePath', () => {
         expect(isTestFilePath('my.tests.mjs')).toBe(true);
         expect(isTestFilePath('ahoj/test_basic.py')).toBe(true);
         expect(isTestFilePath('simething/jknkjnkj/js')).toBe(false);
+        expect(isTestFilePath('test/jknkjnkj/js')).toBe(true);
+        expect(isTestFilePath('/test/jknkjnkj/js')).toBe(true);
     });
 
     test('works with directories', () => {

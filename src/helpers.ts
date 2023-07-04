@@ -324,6 +324,7 @@ export function isTestFilePath(filePath: string): boolean {
 
     return filePath.includes('/test/')
         || filePath.includes('/tests/')
+        || filePath.startsWith('test/')
         || testFileNameRegex.test(filePath);
 };
 
