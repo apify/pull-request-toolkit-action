@@ -8,6 +8,7 @@ import {
     addTeamLabel,
     ensureCorrectLinkingAndEstimates,
     isPullRequestTested,
+    ensurePullRequestHasSomeDescription,
 } from './helpers';
 import {
     TEAM_LABEL_PREFIX,
@@ -61,6 +62,8 @@ async function run(): Promise<void> {
                 labels: [TESTED_LABEL_NAME],
             });
         }
+
+        ensurePullRequestHasSomeDescription(repoOctokit, pullRequest);
 
         try {
             if (isTeamUsingZenhub) await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true);

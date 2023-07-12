@@ -345,3 +345,12 @@ export async function isPullRequestTested(octokit: OctokitType, pullRequest: Pul
 
     return testFilePaths.length > 0;
 };
+
+/**
+ * Fails if the pull request does not have any description.
+ */
+export async function ensurePullRequestHasSomeDescription(octokit: OctokitType, pullRequest: PullRequest) {
+    if (!pullRequest.body) {
+        await fail(pullRequest, 'Pull request must have non-empty description!', octokit);
+    }
+}
