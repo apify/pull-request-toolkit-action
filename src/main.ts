@@ -63,7 +63,7 @@ async function run(): Promise<void> {
             });
         }
 
-        ensurePullRequestHasSomeDescription(repoOctokit, pullRequest);
+        await ensurePullRequestHasSomeDescription(repoOctokit, pullRequest);
 
         try {
             if (isTeamUsingZenhub) await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true);
