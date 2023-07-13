@@ -350,6 +350,7 @@ export async function isPullRequestTested(octokit: OctokitType, pullRequest: Pul
  * Fails if the pull request does not have any description.
  */
 export async function ensurePullRequestHasSomeDescription(octokit: OctokitType, pullRequest: PullRequest) {
+    console.log('Pull request description', pullRequest.body);
     if (!pullRequest.body) {
         await fail(pullRequest, 'Pull request must have non-empty description!', octokit);
     }
