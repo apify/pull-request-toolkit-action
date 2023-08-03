@@ -244,7 +244,7 @@ query getWorkspaceRepositories($workspaceName: String!, $endCursor: String) {
           }
       }
     }
-    }
+}
 `;
 
 /**
