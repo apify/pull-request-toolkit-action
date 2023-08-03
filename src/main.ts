@@ -8,6 +8,7 @@ import {
     addTeamLabel,
     ensureCorrectLinkingAndEstimates,
     isPullRequestTested,
+    isRepoIncludedInZenHubWorkspace,
 } from './helpers';
 import {
     TEAM_LABEL_PREFIX,
@@ -39,19 +40,38 @@ async function run(): Promise<void> {
             pull_number: pullRequestContext.number,
         });
 
+        // Skip the PR if not a member of one of the product teams.
         const teamName = await findUsersTeamName(orgOctokit, pullRequestContext.user.login);
         if (!teamName) {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
 
+        // Skip if the repository is not connected to the ZenHub workspace.
+        if (!isRepoIncludedInZenHubWorkspace(pullRequest.base.repo.name)) {
+            core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`);
+            return;
+        }
+
+        // Skip if the team is listed in TEAMS_NOT_USING_ZENHUB.
         const isTeamUsingZenhub = !TEAMS_NOT_USING_ZENHUB.includes(teamName);
+        if (!isTeamUsingZenhub) return;
+
+        // All these 4 actions below are idempotent, so they can be run on every PR update.
+        // Also, these actions do not require any action from a PR author.
+
+        // 1. Assigns PR creator if not already assigned.
         const isCreatorAssigned = pullRequestContext.assignees.find((u: Assignee) => u?.login === pullRequestContext.user.login);
         if (!isCreatorAssigned) await assignPrCreator(github.context, repoOctokit, pullRequest);
-        if (!pullRequestContext.milestone && isTeamUsingZenhub) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
 
+        // 2. Assigns current milestone if not already assigned.
+        if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
+
+        // 3. Adds team label if not already there.
         const teamLabel = pullRequestContext.labels.find((label: Label) => label.name.startsWith(TEAM_LABEL_PREFIX));
         if (!teamLabel) await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
+
+        // 4. Checks if PR is tested and adds a `tested` label if so.
         const isTested = await isPullRequestTested(repoOctokit, pullRequest);
         if (isTested) {
             await repoOctokit.rest.issues.addLabels({
@@ -62,8 +82,10 @@ async function run(): Promise<void> {
             });
         }
 
+        // On the other hand, this is a check that author of the PR correctly filled in the details.
+        // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
         try {
-            if (isTeamUsingZenhub) await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true);
+            await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true);
         } catch (err) {
             console.log('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
             console.log(err);

@@ -4,6 +4,7 @@ import {
     findCurrentTeamMilestone,
     getTeamLabelName,
     // ensureCorrectLinkingAndEstimates,
+    isRepoIncludedInZenHubWorkspace,
     getLinkedIssue,
     getLinkedEpics,
     ZenhubTimelineItem,
@@ -169,6 +170,13 @@ describe('isPullRequestTested', () => {
     test('correctly returns true for tested PR', async () => {
         const pullRequest = require('./mocks/pull_request.json'); // eslint-disable-line
         console.log(await isPullRequestTested(getOctokit('xxx'), pullRequest));
+    });
+});
+
+describe('isRepoIncludedInZenHubWorkspace', () => {
+    test('works correctly with a PR', async () => {
+        const pullRequest = require('./mocks/pull_request.json'); // eslint-disable-line
+        console.log(await isRepoIncludedInZenHubWorkspace(pullRequest.base.repo.name));
     });
 });
 */

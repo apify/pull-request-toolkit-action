@@ -9,6 +9,7 @@ import {
     PARENT_TEAM_SLUG,
     TEAM_NAME_TO_LABEL,
     ZENHUB_WORKSPACE_ID,
+    ZENHUB_WORKSPACE_NAME,
 } from './consts';
 
 type Milestone = components['schemas']['milestone'];
@@ -221,6 +222,52 @@ query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
     }
 }
 `;
+
+const ZENHUB_WORKSPACE_REPOSITORIES_QUERY = `
+query getWorkspaceRepositories($workspaceName: String!, $endCursor: String) {
+    viewer {
+      id
+      searchWorkspaces(query: $workspaceName) {
+          nodes {
+              id
+              name
+              repositoriesConnection(first: 100, after: $endCursor) {
+                  nodes {
+                      id
+                      name
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+              }
+          }
+      }
+    }
+    }
+`;
+
+/**
+ * Checks if the repository is included in the ZenHub workspace defined by ZENHUB_WORKSPACE_NAME.
+ */
+export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): Promise<boolean> {
+    const repositories = [];
+    let pageInfo;
+
+    do {
+        const response = await queryZenhubGraphql('getWorkspaceRepositories', ZENHUB_WORKSPACE_REPOSITORIES_QUERY, {
+            workspaceName: ZENHUB_WORKSPACE_NAME,
+            endCursor: pageInfo?.endCursor,
+        });
+
+        const repos = response.data.data.viewer.searchWorkspaces.nodes[0].repositoriesConnection.nodes; // .map((node) => node?.name);
+        pageInfo = response.data.data.viewer.searchWorkspaces.nodes[0].repositoriesConnection.pageInfo as { endCursor: string, hasNextPage: boolean };
+
+        repositories.push(...repos);
+    } while (pageInfo.hasNextPage);
+
+    return repositories.map((repo) => repo.name).includes(repositoryName);
+};
 
 /**
  * Makes sure that:
