@@ -267,6 +267,7 @@ async function isRepoIncludedInZenHubWorkspace(repositoryName) {
         pageInfo = repositoriesConnection.pageInfo;
         repositories.push(...repos);
     } while (pageInfo.hasNextPage);
+    console.log(repositories);
     return repositories.map((repo) => repo.name).includes(repositoryName);
 }
 exports.isRepoIncludedInZenHubWorkspace = isRepoIncludedInZenHubWorkspace;
@@ -493,7 +494,7 @@ async function run() {
             core.info(`Team label for team ${teamName} successfully added`);
         }
         else {
-            core.info(`Team label ${teamLabel} already present.`);
+            core.info(`Team label ${teamLabel.name} already present`);
         }
         // 4. Checks if PR is tested and adds a `tested` label if so.
         const isTested = await (0, helpers_1.isPullRequestTested)(repoOctokit, pullRequest);

@@ -96,7 +96,7 @@ async function run(): Promise<void> {
             await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
             core.info(`Team label for team ${teamName} successfully added`);
         } else {
-            core.info(`Team label ${teamLabel} already present.`);
+            core.info(`Team label ${teamLabel.name} already present`);
         }
 
         // 4. Checks if PR is tested and adds a `tested` label if so.
