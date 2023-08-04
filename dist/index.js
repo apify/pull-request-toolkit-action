@@ -395,6 +395,9 @@ async function run() {
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext)
             throw new Error('Action works only for PRs!');
+        console.log('another.....');
+        console.log('another.....');
+        console.log(pullRequestContext.base.repo);
         const { data: pullRequest } = await repoOctokit.rest.pulls.get({
             owner: pullRequestContext.base.repo.owner.login,
             repo: pullRequestContext.base.repo.name,
