@@ -9,6 +9,7 @@ import {
     PARENT_TEAM_SLUG,
     TEAM_NAME_TO_LABEL,
     ZENHUB_WORKSPACE_ID,
+    ZENHUB_WORKSPACE_NAME,
 } from './consts';
 
 type Milestone = components['schemas']['milestone'];
@@ -66,7 +67,6 @@ export async function findUsersTeamName(orgOctokit: OctokitType, userLogin: stri
         const isMember = members.some((member) => member?.login === userLogin);
         if (isMember) {
             teamName = childTeam.name;
-            core.info(`User ${userLogin} belongs to a team ${teamName}`);
             break;
         }
     }
@@ -112,13 +112,12 @@ export async function assignPrCreator(context: Context, octokit: OctokitType, pu
         issue_number: pullRequest.number,
         assignees: assigneeLogins,
     });
-    core.info('Creator successfully assigned');
 }
 
 /**
  * If milestone is not set then sets it to a current milestone of a given team.
  */
-export async function fillCurrentMilestone(context: Context, octokit: OctokitType, pullRequest: PullRequest, teamName: string): Promise<void> {
+export async function fillCurrentMilestone(context: Context, octokit: OctokitType, pullRequest: PullRequest, teamName: string): Promise<string> {
     // Assign PR to right sprint milestone
     const { data: milestones } = await octokit.request('GET /repos/{owner}/{repo}/milestones', {
         owner: context.repo.owner,
@@ -135,7 +134,8 @@ export async function fillCurrentMilestone(context: Context, octokit: OctokitTyp
         issue_number: pullRequest.number,
         milestone: foundMilestone.number,
     });
-    core.info(`Milestone successfully filled with ${foundMilestone.title}`);
+
+    return foundMilestone.title;
 }
 
 /**
@@ -221,6 +221,57 @@ query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
     }
 }
 `;
+
+const ZENHUB_WORKSPACE_REPOSITORIES_QUERY = `
+query getWorkspaceRepositories($workspaceName: String!, $endCursor: String) {
+    viewer {
+      id
+      searchWorkspaces(query: $workspaceName) {
+          nodes {
+              id
+              name
+              repositoriesConnection(first: 100, after: $endCursor) {
+                  nodes {
+                      id
+                      name
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+              }
+          }
+      }
+    }
+}
+`;
+
+/**
+ * Checks if the repository is included in the ZenHub workspace defined by ZENHUB_WORKSPACE_NAME.
+ */
+export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): Promise<boolean> {
+    const repositories = [];
+    let pageInfo;
+
+    do {
+        const response = await queryZenhubGraphql('getWorkspaceRepositories', ZENHUB_WORKSPACE_REPOSITORIES_QUERY, {
+            workspaceName: ZENHUB_WORKSPACE_NAME,
+            endCursor: pageInfo?.endCursor,
+        });
+
+        if (response.data.data.viewer.searchWorkspaces.nodes.length === 0) {
+            throw new Error(`Workspace ${ZENHUB_WORKSPACE_NAME} was not found!`);
+        }
+
+        const { repositoriesConnection } = response.data.data.viewer.searchWorkspaces.nodes[0];
+        const repos = repositoriesConnection.nodes;
+        pageInfo = repositoriesConnection.pageInfo as { endCursor: string, hasNextPage: boolean };
+
+        repositories.push(...repos);
+    } while (pageInfo.hasNextPage);
+
+    return repositories.map((repo) => repo.name).includes(repositoryName);
+};
 
 /**
  * Makes sure that:
@@ -340,8 +391,8 @@ export async function isPullRequestTested(octokit: OctokitType, pullRequest: Pul
     const filePaths = files.data.map((file) => file.filename);
     const testFilePaths = filePaths.filter((filePath) => isTestFilePath(filePath));
 
-    console.log(`${testFilePaths.length} test files found`);
-    console.log(`- ${testFilePaths.join('\n- ')}`);
+    console.log(`${testFilePaths.length} test files found`); // eslint-disable-line no-console
+    console.log(`- ${testFilePaths.join('\n- ')}`); // eslint-disable-line no-console
 
     return testFilePaths.length > 0;
 };

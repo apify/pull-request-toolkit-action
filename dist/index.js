@@ -7,10 +7,11 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.TESTED_LABEL_NAME = exports.TEAMS_NOT_USING_ZENHUB = exports.DRY_RUN_SLEEP_MINS = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
+exports.TESTED_LABEL_NAME = exports.TEAMS_NOT_USING_ZENHUB = exports.DRY_RUN_SLEEP_MINS = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
 exports.ORGANIZATION = 'apify';
 exports.PARENT_TEAM_SLUG = 'product-engineering';
 exports.ZENHUB_WORKSPACE_ID = '5f6454160d9f82000fa6733f';
+exports.ZENHUB_WORKSPACE_NAME = 'Platform Team';
 exports.TEAM_LABEL_PREFIX = 't-';
 exports.TEAM_NAME_TO_LABEL = {
     'Cash & Community': 't-c&c',
@@ -54,7 +55,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
+exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.isRepoIncludedInZenHubWorkspace = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
 const axios_1 = __importDefault(__nccwpck_require__(8757));
 const core = __importStar(__nccwpck_require__(2186));
 const consts_1 = __nccwpck_require__(4831);
@@ -77,7 +78,6 @@ async function findUsersTeamName(orgOctokit, userLogin) {
         const isMember = members.some((member) => (member === null || member === void 0 ? void 0 : member.login) === userLogin);
         if (isMember) {
             teamName = childTeam.name;
-            core.info(`User ${userLogin} belongs to a team ${teamName}`);
             break;
         }
     }
@@ -121,7 +121,6 @@ async function assignPrCreator(context, octokit, pullRequest) {
         issue_number: pullRequest.number,
         assignees: assigneeLogins,
     });
-    core.info('Creator successfully assigned');
 }
 exports.assignPrCreator = assignPrCreator;
 /**
@@ -144,7 +143,7 @@ async function fillCurrentMilestone(context, octokit, pullRequest, teamName) {
         issue_number: pullRequest.number,
         milestone: foundMilestone.number,
     });
-    core.info(`Milestone successfully filled with ${foundMilestone.title}`);
+    return foundMilestone.title;
 }
 exports.fillCurrentMilestone = fillCurrentMilestone;
 /**
@@ -226,6 +225,52 @@ query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
     }
 }
 `;
+const ZENHUB_WORKSPACE_REPOSITORIES_QUERY = `
+query getWorkspaceRepositories($workspaceName: String!, $endCursor: String) {
+    viewer {
+      id
+      searchWorkspaces(query: $workspaceName) {
+          nodes {
+              id
+              name
+              repositoriesConnection(first: 100, after: $endCursor) {
+                  nodes {
+                      id
+                      name
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+              }
+          }
+      }
+    }
+}
+`;
+/**
+ * Checks if the repository is included in the ZenHub workspace defined by ZENHUB_WORKSPACE_NAME.
+ */
+async function isRepoIncludedInZenHubWorkspace(repositoryName) {
+    const repositories = [];
+    let pageInfo;
+    do {
+        const response = await queryZenhubGraphql('getWorkspaceRepositories', ZENHUB_WORKSPACE_REPOSITORIES_QUERY, {
+            workspaceName: consts_1.ZENHUB_WORKSPACE_NAME,
+            endCursor: pageInfo === null || pageInfo === void 0 ? void 0 : pageInfo.endCursor,
+        });
+        if (response.data.data.viewer.searchWorkspaces.nodes.length === 0) {
+            throw new Error(`Workspace ${consts_1.ZENHUB_WORKSPACE_NAME} was not found!`);
+        }
+        const { repositoriesConnection } = response.data.data.viewer.searchWorkspaces.nodes[0];
+        const repos = repositoriesConnection.nodes;
+        pageInfo = repositoriesConnection.pageInfo;
+        repositories.push(...repos);
+    } while (pageInfo.hasNextPage);
+    return repositories.map((repo) => repo.name).includes(repositoryName);
+}
+exports.isRepoIncludedInZenHubWorkspace = isRepoIncludedInZenHubWorkspace;
+;
 /**
  * Makes sure that:
  * - PR either has issue or epic linked or has `adhoc` label
@@ -320,6 +365,7 @@ function isTestFilePath(filePath) {
     const testFileNameRegex = /(\.|_|\w)*tests?(\.|_|\w)*\.\w{2,3}$/;
     return filePath.includes('/test/')
         || filePath.includes('/tests/')
+        || filePath.startsWith('test/')
         || testFileNameRegex.test(filePath);
 }
 exports.isTestFilePath = isTestFilePath;
@@ -335,8 +381,8 @@ async function isPullRequestTested(octokit, pullRequest) {
     });
     const filePaths = files.data.map((file) => file.filename);
     const testFilePaths = filePaths.filter((filePath) => isTestFilePath(filePath));
-    console.log(`${testFilePaths.length} test files found`);
-    console.log(`- ${testFilePaths.join('\n- ')}`);
+    console.log(`${testFilePaths.length} test files found`); // eslint-disable-line no-console
+    console.log(`- ${testFilePaths.join('\n- ')}`); // eslint-disable-line no-console
     return testFilePaths.length > 0;
 }
 exports.isPullRequestTested = isPullRequestTested;
@@ -379,7 +425,15 @@ const github = __importStar(__nccwpck_require__(5438));
 const helpers_1 = __nccwpck_require__(5008);
 const consts_1 = __nccwpck_require__(4831);
 async function run() {
+    var _a, _b;
     try {
+        // This skips the action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
+        // Do not use pull_request?.base but pull_request?.head because the former one does not container the forked repo name.
+        if (!((_a = github.context.payload.pull_request) === null || _a === void 0 ? void 0 : _a.head.repo.full_name.startsWith(`${consts_1.ORGANIZATION}/`))) {
+            core.warning(`Skipping toolkit action for PR from external fork: ${(_b = github.context.payload.pull_request) === null || _b === void 0 ? void 0 : _b.head.repo.full_name}`);
+            return;
+        }
+        core.info('Pull request is from apify organization, not from an external fork.');
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
@@ -394,39 +448,81 @@ async function run() {
             repo: pullRequestContext.base.repo.name,
             pull_number: pullRequestContext.number,
         });
+        // Skip the PR if not a member of one of the product teams.
         const teamName = await (0, helpers_1.findUsersTeamName)(orgOctokit, pullRequestContext.user.login);
         if (!teamName) {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
+        core.info(`User ${pullRequestContext.user.login} belongs to a team ${teamName}`);
+        // Skip if the repository is not connected to the ZenHub workspace.
+        const belongsToZenhub = await (0, helpers_1.isRepoIncludedInZenHubWorkspace)(pullRequest.base.repo.name);
+        if (!belongsToZenhub) {
+            core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`);
+            return;
+        }
+        core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace`);
+        // Skip if the team is listed in TEAMS_NOT_USING_ZENHUB.
         const isTeamUsingZenhub = !consts_1.TEAMS_NOT_USING_ZENHUB.includes(teamName);
+        if (!isTeamUsingZenhub) {
+            core.info(`Team ${teamName} is listed in TEAMS_NOT_USING_ZENHUB. Skipping toolkit action.`);
+            return;
+        }
+        core.info(`Team ${teamName} uses a ZenHub`);
+        // All these 4 actions below are idempotent, so they can be run on every PR update.
+        // Also, these actions do not require any action from a PR author.
+        // 1. Assigns PR creator if not already assigned.
         const isCreatorAssigned = pullRequestContext.assignees.find((u) => (u === null || u === void 0 ? void 0 : u.login) === pullRequestContext.user.login);
-        if (!isCreatorAssigned)
+        if (!isCreatorAssigned) {
             await (0, helpers_1.assignPrCreator)(github.context, repoOctokit, pullRequest);
-        if (!pullRequestContext.milestone && isTeamUsingZenhub)
-            await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
+            core.info('Creator successfully assigned');
+        }
+        else {
+            core.info('Creator already assigned');
+        }
+        // 2. Assigns current milestone if not already assigned.
+        if (!pullRequestContext.milestone) {
+            const milestoneTitle = await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
+            core.info(`Milestone successfully filled with ${milestoneTitle}`);
+        }
+        else {
+            core.info('Milestone already assigned');
+        }
+        // 3. Adds team label if not already there.
         const teamLabel = pullRequestContext.labels.find((label) => label.name.startsWith(consts_1.TEAM_LABEL_PREFIX));
-        if (!teamLabel)
+        if (!teamLabel) {
             await (0, helpers_1.addTeamLabel)(github.context, repoOctokit, pullRequest, teamName);
+            core.info(`Team label for team ${teamName} successfully added`);
+        }
+        else {
+            core.info(`Team label ${teamLabel.name} already present`);
+        }
+        // 4. Checks if PR is tested and adds a `tested` label if so.
         const isTested = await (0, helpers_1.isPullRequestTested)(repoOctokit, pullRequest);
         if (isTested) {
+            core.info('PR is tested');
             await repoOctokit.rest.issues.addLabels({
                 owner: consts_1.ORGANIZATION,
                 repo: pullRequest.base.repo.name,
                 issue_number: pullRequest.number,
                 labels: [consts_1.TESTED_LABEL_NAME],
             });
+            core.info(`Label ${consts_1.TESTED_LABEL_NAME} successfully added`);
         }
+        else {
+            core.info('PR is not tested');
+        }
+        // On the other hand, this is a check that author of the PR correctly filled in the details.
+        // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
         try {
-            if (isTeamUsingZenhub)
-                await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, true);
+            await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, true);
         }
         catch (err) {
-            console.log('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
-            console.log(err);
-            console.log(`Sleeping for ${consts_1.DRY_RUN_SLEEP_MINS} minutes`);
+            core.info('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
+            console.error(err); // eslint-disable-line no-console
+            core.info(`Sleeping for ${consts_1.DRY_RUN_SLEEP_MINS} minutes`);
             await new Promise((resolve) => setTimeout(resolve, consts_1.DRY_RUN_SLEEP_MINS * 60000));
-            console.log('Running check again');
+            core.info('Running check again');
             await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, false);
         }
     }
