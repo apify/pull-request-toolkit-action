@@ -1,7 +1,6 @@
 require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
-    
 /***/ 4831:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -435,7 +434,16 @@ async function run() {
             return;
         }
         core.info('Pull request is from apify organization, not from an external fork.');
+        // Skip when PR is not into the default branch. We only want to run this on PRs to develop or main when develop is not used but we
+        // don't want to run this on releases or PR chains.
         console.log(JSON.stringify(github.context, null, 2));
+        const defaultBranch = github.context.payload.pull_request.head.repo.default_branch;
+        const targetBranch = github.context.payload.pull_request.base.ref;
+        if (defaultBranch !== targetBranch) {
+            core.info(`Skipping toolkit action for PR not into default branch ${defaultBranch} but ${targetBranch} instead.`);
+            return;
+        }
+        core.info(`Pull request is into default branch ${defaultBranch}`);
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
