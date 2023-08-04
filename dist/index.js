@@ -427,7 +427,7 @@ async function run() {
     var _a, _b;
     try {
         // This disables skips this action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
-        if ((_a = github.context.payload.pull_request) === null || _a === void 0 ? void 0 : _a.base.repo.full_name.startsWith(`${consts_1.ORGANIZATION}/`)) {
+        if (!((_a = github.context.payload.pull_request) === null || _a === void 0 ? void 0 : _a.base.repo.full_name.startsWith(`${consts_1.ORGANIZATION}/`))) {
             core.warning(`Skipping toolkit action for PR from external fork: ${(_b = github.context.payload.pull_request) === null || _b === void 0 ? void 0 : _b.base.repo.full_name}`);
             return;
         }

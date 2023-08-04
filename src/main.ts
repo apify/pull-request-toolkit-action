@@ -24,7 +24,7 @@ type Label = components['schemas']['label'];
 async function run(): Promise<void> {
     try {
         // This disables skips this action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
-        if (github.context.payload.pull_request?.base.repo.full_name.startsWith(`${ORGANIZATION}/`)) {
+        if (!github.context.payload.pull_request?.base.repo.full_name.startsWith(`${ORGANIZATION}/`)) {
             core.warning(`Skipping toolkit action for PR from external fork: ${github.context.payload.pull_request?.base.repo.full_name}`);
             return;
         }
