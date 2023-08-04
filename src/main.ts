@@ -28,6 +28,7 @@ async function run(): Promise<void> {
             core.warning(`Skipping toolkit action for PR from external fork: ${github.context.payload.pull_request?.base.repo.full_name}`);
             return;
         }
+        core.info('Pull request is from apify organization, not from an external fork.');
 
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
@@ -52,40 +53,65 @@ async function run(): Promise<void> {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
+        core.info(`User ${pullRequestContext.user.login} belongs to a team ${teamName}`);
 
         // Skip if the repository is not connected to the ZenHub workspace.
         if (!isRepoIncludedInZenHubWorkspace(pullRequest.base.repo.name)) {
             core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`);
             return;
         }
+        core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace`);
 
         // Skip if the team is listed in TEAMS_NOT_USING_ZENHUB.
         const isTeamUsingZenhub = !TEAMS_NOT_USING_ZENHUB.includes(teamName);
-        if (!isTeamUsingZenhub) return;
+        if (!isTeamUsingZenhub) {
+            core.info(`Team ${teamName} is listed in TEAMS_NOT_USING_ZENHUB. Skipping toolkit action.`);
+            return;
+        }
+        core.info(`Team ${teamName} uses a ZenHub`);
 
         // All these 4 actions below are idempotent, so they can be run on every PR update.
         // Also, these actions do not require any action from a PR author.
 
         // 1. Assigns PR creator if not already assigned.
         const isCreatorAssigned = pullRequestContext.assignees.find((u: Assignee) => u?.login === pullRequestContext.user.login);
-        if (!isCreatorAssigned) await assignPrCreator(github.context, repoOctokit, pullRequest);
+        if (!isCreatorAssigned) {
+            await assignPrCreator(github.context, repoOctokit, pullRequest);
+            core.info('Creator successfully assigned');
+        } else {
+            core.info('Creator already assigned');
+        }
 
         // 2. Assigns current milestone if not already assigned.
-        if (!pullRequestContext.milestone) await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
+        if (!pullRequestContext.milestone) {
+            const milestoneTitle = await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
+            core.info(`Milestone successfully filled with ${milestoneTitle}`);
+        } else {
+            core.info('Milestone already assigned');
+        }
 
         // 3. Adds team label if not already there.
         const teamLabel = pullRequestContext.labels.find((label: Label) => label.name.startsWith(TEAM_LABEL_PREFIX));
-        if (!teamLabel) await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
+        if (!teamLabel) {
+            await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
+            core.info(`Team label for team ${teamName} successfully added`);
+        } else {
+            core.info(`Team label ${teamLabel} already present.`);
+        }
 
         // 4. Checks if PR is tested and adds a `tested` label if so.
         const isTested = await isPullRequestTested(repoOctokit, pullRequest);
         if (isTested) {
+            core.info('PR is tested');
             await repoOctokit.rest.issues.addLabels({
                 owner: ORGANIZATION,
                 repo: pullRequest.base.repo.name,
                 issue_number: pullRequest.number,
                 labels: [TESTED_LABEL_NAME],
             });
+            core.info(`Label ${TESTED_LABEL_NAME} successfully added`);
+        } else {
+            core.info('PR is not tested');
         }
 
         // On the other hand, this is a check that author of the PR correctly filled in the details.
@@ -93,11 +119,11 @@ async function run(): Promise<void> {
         try {
             await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true);
         } catch (err) {
-            console.log('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
-            console.log(err);
-            console.log(`Sleeping for ${DRY_RUN_SLEEP_MINS} minutes`);
+            core.info('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
+            console.error(err); // eslint-disable-line no-console
+            core.info(`Sleeping for ${DRY_RUN_SLEEP_MINS} minutes`);
             await new Promise((resolve) => setTimeout(resolve, DRY_RUN_SLEEP_MINS * 60000));
-            console.log('Running check again');
+            core.info('Running check again');
             await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, false);
         }
     } catch (error) {

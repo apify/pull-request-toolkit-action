@@ -78,7 +78,6 @@ async function findUsersTeamName(orgOctokit, userLogin) {
         const isMember = members.some((member) => (member === null || member === void 0 ? void 0 : member.login) === userLogin);
         if (isMember) {
             teamName = childTeam.name;
-            core.info(`User ${userLogin} belongs to a team ${teamName}`);
             break;
         }
     }
@@ -122,7 +121,6 @@ async function assignPrCreator(context, octokit, pullRequest) {
         issue_number: pullRequest.number,
         assignees: assigneeLogins,
     });
-    core.info('Creator successfully assigned');
 }
 exports.assignPrCreator = assignPrCreator;
 /**
@@ -145,7 +143,7 @@ async function fillCurrentMilestone(context, octokit, pullRequest, teamName) {
         issue_number: pullRequest.number,
         milestone: foundMilestone.number,
     });
-    core.info(`Milestone successfully filled with ${foundMilestone.title}`);
+    return foundMilestone.title;
 }
 exports.fillCurrentMilestone = fillCurrentMilestone;
 /**
@@ -383,8 +381,8 @@ async function isPullRequestTested(octokit, pullRequest) {
     });
     const filePaths = files.data.map((file) => file.filename);
     const testFilePaths = filePaths.filter((filePath) => isTestFilePath(filePath));
-    console.log(`${testFilePaths.length} test files found`);
-    console.log(`- ${testFilePaths.join('\n- ')}`);
+    console.log(`${testFilePaths.length} test files found`); // eslint-disable-line no-console
+    console.log(`- ${testFilePaths.join('\n- ')}`); // eslint-disable-line no-console
     return testFilePaths.length > 0;
 }
 exports.isPullRequestTested = isPullRequestTested;
@@ -434,6 +432,7 @@ async function run() {
             core.warning(`Skipping toolkit action for PR from external fork: ${(_b = github.context.payload.pull_request) === null || _b === void 0 ? void 0 : _b.base.repo.full_name}`);
             return;
         }
+        core.info('Pull request is from apify organization, not from an external fork.');
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
@@ -454,37 +453,62 @@ async function run() {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
+        core.info(`User ${pullRequestContext.user.login} belongs to a team ${teamName}`);
         // Skip if the repository is not connected to the ZenHub workspace.
         if (!(0, helpers_1.isRepoIncludedInZenHubWorkspace)(pullRequest.base.repo.name)) {
             core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`);
             return;
         }
+        core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace`);
         // Skip if the team is listed in TEAMS_NOT_USING_ZENHUB.
         const isTeamUsingZenhub = !consts_1.TEAMS_NOT_USING_ZENHUB.includes(teamName);
-        if (!isTeamUsingZenhub)
+        if (!isTeamUsingZenhub) {
+            core.info(`Team ${teamName} is listed in TEAMS_NOT_USING_ZENHUB. Skipping toolkit action.`);
             return;
+        }
+        core.info(`Team ${teamName} uses a ZenHub`);
         // All these 4 actions below are idempotent, so they can be run on every PR update.
         // Also, these actions do not require any action from a PR author.
         // 1. Assigns PR creator if not already assigned.
         const isCreatorAssigned = pullRequestContext.assignees.find((u) => (u === null || u === void 0 ? void 0 : u.login) === pullRequestContext.user.login);
-        if (!isCreatorAssigned)
+        if (!isCreatorAssigned) {
             await (0, helpers_1.assignPrCreator)(github.context, repoOctokit, pullRequest);
+            core.info('Creator successfully assigned');
+        }
+        else {
+            core.info('Creator already assigned');
+        }
         // 2. Assigns current milestone if not already assigned.
-        if (!pullRequestContext.milestone)
-            await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
+        if (!pullRequestContext.milestone) {
+            const milestoneTitle = await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
+            core.info(`Milestone successfully filled with ${milestoneTitle}`);
+        }
+        else {
+            core.info('Milestone already assigned');
+        }
         // 3. Adds team label if not already there.
         const teamLabel = pullRequestContext.labels.find((label) => label.name.startsWith(consts_1.TEAM_LABEL_PREFIX));
-        if (!teamLabel)
+        if (!teamLabel) {
             await (0, helpers_1.addTeamLabel)(github.context, repoOctokit, pullRequest, teamName);
+            core.info(`Team label for team ${teamName} successfully added`);
+        }
+        else {
+            core.info(`Team label ${teamLabel} already present.`);
+        }
         // 4. Checks if PR is tested and adds a `tested` label if so.
         const isTested = await (0, helpers_1.isPullRequestTested)(repoOctokit, pullRequest);
         if (isTested) {
+            core.info('PR is tested');
             await repoOctokit.rest.issues.addLabels({
                 owner: consts_1.ORGANIZATION,
                 repo: pullRequest.base.repo.name,
                 issue_number: pullRequest.number,
                 labels: [consts_1.TESTED_LABEL_NAME],
             });
+            core.info(`Label ${consts_1.TESTED_LABEL_NAME} successfully added`);
+        }
+        else {
+            core.info('PR is not tested');
         }
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
@@ -492,11 +516,11 @@ async function run() {
             await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, true);
         }
         catch (err) {
-            console.log('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
-            console.log(err);
-            console.log(`Sleeping for ${consts_1.DRY_RUN_SLEEP_MINS} minutes`);
+            core.info('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
+            console.error(err); // eslint-disable-line no-console
+            core.info(`Sleeping for ${consts_1.DRY_RUN_SLEEP_MINS} minutes`);
             await new Promise((resolve) => setTimeout(resolve, consts_1.DRY_RUN_SLEEP_MINS * 60000));
-            console.log('Running check again');
+            core.info('Running check again');
             await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, false);
         }
     }
