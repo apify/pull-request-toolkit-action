@@ -29,7 +29,17 @@ async function run(): Promise<void> {
             core.warning(`Skipping toolkit action for PR from external fork: ${github.context.payload.pull_request?.head.repo.full_name}`);
             return;
         }
-        core.info('Pull request is from apify organization, not from an external fork.');
+        core.info('Pull request is from an apify organization, not from an external fork.');
+
+        // Skip when PR is not into the default branch. We only want to run this on PRs to develop or main when develop is not used but we
+        // don't want to run this on releases or PR chains.
+        const defaultBranch = github.context.payload.pull_request.head.repo.default_branch;
+        const targetBranch = github.context.payload.pull_request.base.ref;
+        if (defaultBranch !== targetBranch) {
+            core.info(`Skipping toolkit action for PR not into the default branch ${defaultBranch} but ${targetBranch} instead.`);
+            return;
+        }
+        core.info(`Pull request is into the default branch ${defaultBranch}`);
 
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
