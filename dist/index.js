@@ -20,7 +20,6 @@ exports.DRY_RUN_SLEEP_MINS = 2;
 exports.TEAMS_NOT_USING_ZENHUB = ['Tooling'];
 exports.TESTED_LABEL_NAME = 'tested';
 
-    
 
 /***/ }),
 
@@ -434,17 +433,16 @@ async function run() {
             core.warning(`Skipping toolkit action for PR from external fork: ${(_b = github.context.payload.pull_request) === null || _b === void 0 ? void 0 : _b.head.repo.full_name}`);
             return;
         }
-        core.info('Pull request is from apify organization, not from an external fork.');
+        core.info('Pull request is from an apify organization, not from an external fork.');
         // Skip when PR is not into the default branch. We only want to run this on PRs to develop or main when develop is not used but we
         // don't want to run this on releases or PR chains.
-        console.log(JSON.stringify(github.context, null, 2));
         const defaultBranch = github.context.payload.pull_request.head.repo.default_branch;
         const targetBranch = github.context.payload.pull_request.base.ref;
         if (defaultBranch !== targetBranch) {
-            core.info(`Skipping toolkit action for PR not into default branch ${defaultBranch} but ${targetBranch} instead.`);
+            core.info(`Skipping toolkit action for PR not into the default branch ${defaultBranch} but ${targetBranch} instead.`);
             return;
         }
-        core.info(`Pull request is into default branch ${defaultBranch}`);
+        core.info(`Pull request is into the default branch ${defaultBranch}`);
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
