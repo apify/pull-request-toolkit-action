@@ -427,7 +427,7 @@ const consts_1 = __nccwpck_require__(4831);
 async function run() {
     var _a, _b;
     try {
-        // This disables skips this action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
+        // This skips the action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
         // Do not use pull_request?.base but pull_request?.head because the former one does not container the forked repo name.
         if (!((_a = github.context.payload.pull_request) === null || _a === void 0 ? void 0 : _a.head.repo.full_name.startsWith(`${consts_1.ORGANIZATION}/`))) {
             core.warning(`Skipping toolkit action for PR from external fork: ${(_b = github.context.payload.pull_request) === null || _b === void 0 ? void 0 : _b.head.repo.full_name}`);
