@@ -22,6 +22,10 @@ type Label = components['schemas']['label'];
 
 async function run(): Promise<void> {
     try {
+        console.log('starting.....');
+        console.log('starting.....');
+        console.log('starting.....');
+        console.log('starting.....');
         console.log(github.context.payload.pull_request);
 
         // Octokit configured with repository token - this can be used to modify pull-request.

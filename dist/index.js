@@ -320,6 +320,7 @@ function isTestFilePath(filePath) {
     const testFileNameRegex = /(\.|_|\w)*tests?(\.|_|\w)*\.\w{2,3}$/;
     return filePath.includes('/test/')
         || filePath.includes('/tests/')
+        || filePath.startsWith('test/')
         || testFileNameRegex.test(filePath);
 }
 exports.isTestFilePath = isTestFilePath;
@@ -380,6 +381,11 @@ const helpers_1 = __nccwpck_require__(5008);
 const consts_1 = __nccwpck_require__(4831);
 async function run() {
     try {
+        console.log('starting.....');
+        console.log('starting.....');
+        console.log('starting.....');
+        console.log('starting.....');
+        console.log(github.context.payload.pull_request);
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
