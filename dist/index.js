@@ -434,6 +434,7 @@ async function run() {
             return;
         }
         core.info('Pull request is from apify organization, not from an external fork.');
+        console.log(JSON.stringify(github.context, null, 2));
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
