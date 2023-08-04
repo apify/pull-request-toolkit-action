@@ -380,18 +380,14 @@ const github = __importStar(__nccwpck_require__(5438));
 const helpers_1 = __nccwpck_require__(5008);
 const consts_1 = __nccwpck_require__(4831);
 async function run() {
-    var _a, _b, _c;
+    var _a, _b;
     try {
-        console.log('starting.....');
-        console.log('starting.....');
-        console.log('starting.....');
-        console.log('starting.....');
-        console.log((_a = github.context.payload.pull_request) === null || _a === void 0 ? void 0 : _a.base.repo.owner);
         // This disables skips this action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
-        if ((_b = github.context.payload.pull_request) === null || _b === void 0 ? void 0 : _b.base.repo.full_name.startsWith(consts_1.ORGANIZATION)) {
-            core.warning(`Skipping toolkit action for PR from external fork: ${(_c = github.context.payload.pull_request) === null || _c === void 0 ? void 0 : _c.base.repo.full_name}`);
+        if (!((_a = github.context.payload.pull_request) === null || _a === void 0 ? void 0 : _a.base.repo.full_name.startsWith(`${consts_1.ORGANIZATION}/`))) {
+            core.warning(`Skipping toolkit action for PR from external fork: ${(_b = github.context.payload.pull_request) === null || _b === void 0 ? void 0 : _b.base.repo.full_name}`);
             return;
         }
+        core.info('Pull request is from apify organization, not from an external fork.');
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
