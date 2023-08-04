@@ -260,7 +260,7 @@ export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): P
             endCursor: pageInfo?.endCursor,
         });
 
-        const { repositoriesConnection } = response.data.data.viewer.searchWorkspaces.nodes[0].repositoriesConnectio;
+        const { repositoriesConnection } = response.data.data.viewer.searchWorkspaces.nodes[0].repositoriesConnection;
         const repos = repositoriesConnection.nodes;
         pageInfo = repositoriesConnection.pageInfo as { endCursor: string, hasNextPage: boolean };
 

@@ -261,7 +261,7 @@ async function isRepoIncludedInZenHubWorkspace(repositoryName) {
             workspaceName: consts_1.ZENHUB_WORKSPACE_NAME,
             endCursor: pageInfo === null || pageInfo === void 0 ? void 0 : pageInfo.endCursor,
         });
-        const { repositoriesConnection } = response.data.data.viewer.searchWorkspaces.nodes[0].repositoriesConnectio;
+        const { repositoriesConnection } = response.data.data.viewer.searchWorkspaces.nodes[0].repositoriesConnection;
         const repos = repositoriesConnection.nodes;
         pageInfo = repositoriesConnection.pageInfo;
         repositories.push(...repos);
