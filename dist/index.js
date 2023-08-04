@@ -261,7 +261,10 @@ async function isRepoIncludedInZenHubWorkspace(repositoryName) {
             workspaceName: consts_1.ZENHUB_WORKSPACE_NAME,
             endCursor: pageInfo === null || pageInfo === void 0 ? void 0 : pageInfo.endCursor,
         });
-        const { repositoriesConnection } = response.data.data.viewer.searchWorkspaces.nodes[0].repositoriesConnection;
+        if (response.data.data.viewer.searchWorkspaces.nodes.length === 0) {
+            throw new Error(`Workspace ${consts_1.ZENHUB_WORKSPACE_NAME} was not found!`);
+        }
+        const { repositoriesConnection } = response.data.data.viewer.searchWorkspaces.nodes[0];
         const repos = repositoriesConnection.nodes;
         pageInfo = repositoriesConnection.pageInfo;
         repositories.push(...repos);
