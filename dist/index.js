@@ -380,12 +380,15 @@ const github = __importStar(__nccwpck_require__(5438));
 const helpers_1 = __nccwpck_require__(5008);
 const consts_1 = __nccwpck_require__(4831);
 async function run() {
+    var _a;
     try {
         console.log('starting.....');
         console.log('starting.....');
         console.log('starting.....');
         console.log('starting.....');
-        console.log(github.context.payload.pull_request);
+        console.log((_a = github.context.payload.pull_request) === null || _a === void 0 ? void 0 : _a.base.repo.owner);
+        // This disables skips this action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
+        // if (github.context.payload.pull_request.base.repo.owner.login !== ORGANIZATION) {
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
@@ -395,9 +398,6 @@ async function run() {
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext)
             throw new Error('Action works only for PRs!');
-        console.log('another.....');
-        console.log('another.....');
-        console.log(pullRequestContext.base.repo);
         const { data: pullRequest } = await repoOctokit.rest.pulls.get({
             owner: pullRequestContext.base.repo.owner.login,
             repo: pullRequestContext.base.repo.name,

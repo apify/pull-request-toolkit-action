@@ -26,7 +26,10 @@ async function run(): Promise<void> {
         console.log('starting.....');
         console.log('starting.....');
         console.log('starting.....');
-        console.log(github.context.payload.pull_request);
+        console.log(github.context.payload.pull_request?.base.repo.owner);
+
+        // This disables skips this action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
+        // if (github.context.payload.pull_request.base.repo.owner.login !== ORGANIZATION) {
 
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
@@ -38,10 +41,6 @@ async function run(): Promise<void> {
 
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext) throw new Error('Action works only for PRs!');
-
-        console.log('another.....');
-        console.log('another.....');
-        console.log(pullRequestContext.base.repo);
 
         const { data: pullRequest } = await repoOctokit.rest.pulls.get({
             owner: pullRequestContext.base.repo.owner.login,
