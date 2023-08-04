@@ -36,10 +36,10 @@ async function run(): Promise<void> {
         const defaultBranch = github.context.payload.pull_request.head.repo.default_branch;
         const targetBranch = github.context.payload.pull_request.base.ref;
         if (defaultBranch !== targetBranch) {
-            core.info(`Skipping toolkit action for PR not into the default branch ${defaultBranch} but ${targetBranch} instead.`);
+            core.info(`Skipping toolkit action for PR not into the default branch "${defaultBranch}" but "${targetBranch}" instead.`);
             return;
         }
-        core.info(`Pull request is into the default branch ${defaultBranch}`);
+        core.info(`Pull request is into the default branch "${defaultBranch}"`);
 
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
