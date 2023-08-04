@@ -267,7 +267,6 @@ async function isRepoIncludedInZenHubWorkspace(repositoryName) {
         pageInfo = repositoriesConnection.pageInfo;
         repositories.push(...repos);
     } while (pageInfo.hasNextPage);
-    console.log(repositories);
     return repositories.map((repo) => repo.name).includes(repositoryName);
 }
 exports.isRepoIncludedInZenHubWorkspace = isRepoIncludedInZenHubWorkspace;
@@ -456,7 +455,8 @@ async function run() {
         }
         core.info(`User ${pullRequestContext.user.login} belongs to a team ${teamName}`);
         // Skip if the repository is not connected to the ZenHub workspace.
-        if (!(0, helpers_1.isRepoIncludedInZenHubWorkspace)(pullRequest.base.repo.name)) {
+        const belongsToZenhub = await (0, helpers_1.isRepoIncludedInZenHubWorkspace)(pullRequest.base.repo.name);
+        if (!belongsToZenhub) {
             core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`);
             return;
         }

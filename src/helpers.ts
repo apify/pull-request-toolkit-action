@@ -270,8 +270,6 @@ export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): P
         repositories.push(...repos);
     } while (pageInfo.hasNextPage);
 
-    console.log(repositories);
-
     return repositories.map((repo) => repo.name).includes(repositoryName);
 };
 

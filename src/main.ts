@@ -56,7 +56,8 @@ async function run(): Promise<void> {
         core.info(`User ${pullRequestContext.user.login} belongs to a team ${teamName}`);
 
         // Skip if the repository is not connected to the ZenHub workspace.
-        if (!isRepoIncludedInZenHubWorkspace(pullRequest.base.repo.name)) {
+        const belongsToZenhub = await isRepoIncludedInZenHubWorkspace(pullRequest.base.repo.name);
+        if (!belongsToZenhub) {
             core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`);
             return;
         }
