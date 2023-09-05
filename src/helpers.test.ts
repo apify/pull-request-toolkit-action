@@ -168,7 +168,7 @@ describe('retry', () => {
         expect(counter).toBe(3);
     });
 
-    test('works correctly when succeeds', async () => {
+    test('works correctly when a failure occurs', async () => {
         let counter = 0;
 
         await expect(
