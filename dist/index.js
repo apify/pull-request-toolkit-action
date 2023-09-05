@@ -7,7 +7,7 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.TESTED_LABEL_NAME = exports.TEAMS_NOT_USING_ZENHUB = exports.DRY_RUN_SLEEP_MINS = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
+exports.TESTED_LABEL_NAME = exports.TEAMS_NOT_USING_ZENHUB = exports.LINKING_CHECK_DELAY_MILLIS = exports.LINKING_CHECK_RETRIES = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
 exports.ORGANIZATION = 'apify';
 exports.PARENT_TEAM_SLUG = 'product-engineering';
 exports.ZENHUB_WORKSPACE_ID = '5f6454160d9f82000fa6733f';
@@ -16,7 +16,8 @@ exports.TEAM_LABEL_PREFIX = 't-';
 exports.TEAM_NAME_TO_LABEL = {
     'Cash & Community': 't-c&c',
 };
-exports.DRY_RUN_SLEEP_MINS = 2;
+exports.LINKING_CHECK_RETRIES = 8;
+exports.LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
 exports.TEAMS_NOT_USING_ZENHUB = ['Tooling'];
 exports.TESTED_LABEL_NAME = 'tested';
 
@@ -55,7 +56,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.isRepoIncludedInZenHubWorkspace = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
+exports.retry = exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.isRepoIncludedInZenHubWorkspace = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
 const axios_1 = __importDefault(__nccwpck_require__(8757));
 const core = __importStar(__nccwpck_require__(2186));
 const consts_1 = __nccwpck_require__(4831);
@@ -387,6 +388,27 @@ async function isPullRequestTested(octokit, pullRequest) {
 }
 exports.isPullRequestTested = isPullRequestTested;
 ;
+/**
+ * Retries given function `retries` times with `delayMillis` delay between each attempt if the function fails.
+ */
+async function retry(func, retries, delayMillis) {
+    let currentRetry = 0;
+    while (true) {
+        try {
+            return await func();
+        }
+        catch (err) {
+            if (currentRetry === retries)
+                throw err;
+            core.info(`An attempt has failed. Retrying in ${retries / 1000} secs...`);
+            console.error(err); // eslint-disable-line no-console
+            await new Promise((resolve) => setTimeout(resolve, delayMillis));
+            currentRetry++;
+        }
+    }
+}
+exports.retry = retry;
+;
 
 
 /***/ }),
@@ -442,7 +464,7 @@ async function run() {
             core.info(`Skipping toolkit action for PR not into the default branch "${defaultBranch}" but "${targetBranch}" instead.`);
             return;
         }
-        core.info(`Pull request is into the default branch "${defaultBranch}"`);
+        core.info(`Pull request is into the default branch "${defaultBranch}".`);
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
@@ -463,39 +485,39 @@ async function run() {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
-        core.info(`User ${pullRequestContext.user.login} belongs to a team ${teamName}`);
+        core.info(`User ${pullRequestContext.user.login} belongs to a ${teamName} team.`);
         // Skip if the repository is not connected to the ZenHub workspace.
         const belongsToZenhub = await (0, helpers_1.isRepoIncludedInZenHubWorkspace)(pullRequest.base.repo.name);
         if (!belongsToZenhub) {
             core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`);
             return;
         }
-        core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace`);
+        core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace.`);
         // Skip if the team is listed in TEAMS_NOT_USING_ZENHUB.
         const isTeamUsingZenhub = !consts_1.TEAMS_NOT_USING_ZENHUB.includes(teamName);
         if (!isTeamUsingZenhub) {
             core.info(`Team ${teamName} is listed in TEAMS_NOT_USING_ZENHUB. Skipping toolkit action.`);
             return;
         }
-        core.info(`Team ${teamName} uses a ZenHub`);
+        core.info(`Team ${teamName} uses a ZenHub.`);
         // All these 4 actions below are idempotent, so they can be run on every PR update.
         // Also, these actions do not require any action from a PR author.
         // 1. Assigns PR creator if not already assigned.
         const isCreatorAssigned = pullRequestContext.assignees.find((u) => (u === null || u === void 0 ? void 0 : u.login) === pullRequestContext.user.login);
         if (!isCreatorAssigned) {
             await (0, helpers_1.assignPrCreator)(github.context, repoOctokit, pullRequest);
-            core.info('Creator successfully assigned');
+            core.info('Creator successfully assigned.');
         }
         else {
-            core.info('Creator already assigned');
+            core.info('Creator already assigned.');
         }
         // 2. Assigns current milestone if not already assigned.
         if (!pullRequestContext.milestone) {
             const milestoneTitle = await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
-            core.info(`Milestone successfully filled with ${milestoneTitle}`);
+            core.info(`Milestone successfully filled with ${milestoneTitle}.`);
         }
         else {
-            core.info('Milestone already assigned');
+            core.info('Milestone already assigned.');
         }
         // 3. Adds team label if not already there.
         const teamLabel = pullRequestContext.labels.find((label) => label.name.startsWith(consts_1.TEAM_LABEL_PREFIX));
@@ -509,7 +531,7 @@ async function run() {
         // 4. Checks if PR is tested and adds a `tested` label if so.
         const isTested = await (0, helpers_1.isPullRequestTested)(repoOctokit, pullRequest);
         if (isTested) {
-            core.info('PR is tested');
+            core.info('PR is tested.');
             await repoOctokit.rest.issues.addLabels({
                 owner: consts_1.ORGANIZATION,
                 repo: pullRequest.base.repo.name,
@@ -519,21 +541,11 @@ async function run() {
             core.info(`Label ${consts_1.TESTED_LABEL_NAME} successfully added`);
         }
         else {
-            core.info('PR is not tested');
+            core.info('PR is not tested.');
         }
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
-        try {
-            await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, true);
-        }
-        catch (err) {
-            core.info('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
-            console.error(err); // eslint-disable-line no-console
-            core.info(`Sleeping for ${consts_1.DRY_RUN_SLEEP_MINS} minutes`);
-            await new Promise((resolve) => setTimeout(resolve, consts_1.DRY_RUN_SLEEP_MINS * 60000));
-            core.info('Running check again');
-            await (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, false);
-        }
+        await (0, helpers_1.retry)(() => (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, true), consts_1.LINKING_CHECK_RETRIES, consts_1.LINKING_CHECK_DELAY_MILLIS);
     }
     catch (error) {
         if (error instanceof Error) {
