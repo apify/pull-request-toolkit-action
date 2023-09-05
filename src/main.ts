@@ -9,10 +9,12 @@ import {
     ensureCorrectLinkingAndEstimates,
     isPullRequestTested,
     isRepoIncludedInZenHubWorkspace,
+    retry,
 } from './helpers';
 import {
     TEAM_LABEL_PREFIX,
-    DRY_RUN_SLEEP_MINS,
+    LINKING_CHECK_RETRIES,
+    LINKING_CHECK_DELAY_MILLIS,
     TEAMS_NOT_USING_ZENHUB,
     ORGANIZATION,
     TESTED_LABEL_NAME,
@@ -39,7 +41,7 @@ async function run(): Promise<void> {
             core.info(`Skipping toolkit action for PR not into the default branch "${defaultBranch}" but "${targetBranch}" instead.`);
             return;
         }
-        core.info(`Pull request is into the default branch "${defaultBranch}"`);
+        core.info(`Pull request is into the default branch "${defaultBranch}".`);
 
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
@@ -64,7 +66,7 @@ async function run(): Promise<void> {
             core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
             return;
         }
-        core.info(`User ${pullRequestContext.user.login} belongs to a team ${teamName}`);
+        core.info(`User ${pullRequestContext.user.login} belongs to a ${teamName} team.`);
 
         // Skip if the repository is not connected to the ZenHub workspace.
         const belongsToZenhub = await isRepoIncludedInZenHubWorkspace(pullRequest.base.repo.name);
@@ -72,7 +74,7 @@ async function run(): Promise<void> {
             core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`);
             return;
         }
-        core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace`);
+        core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace.`);
 
         // Skip if the team is listed in TEAMS_NOT_USING_ZENHUB.
         const isTeamUsingZenhub = !TEAMS_NOT_USING_ZENHUB.includes(teamName);
@@ -80,7 +82,7 @@ async function run(): Promise<void> {
             core.info(`Team ${teamName} is listed in TEAMS_NOT_USING_ZENHUB. Skipping toolkit action.`);
             return;
         }
-        core.info(`Team ${teamName} uses a ZenHub`);
+        core.info(`Team ${teamName} uses a ZenHub.`);
 
         // All these 4 actions below are idempotent, so they can be run on every PR update.
         // Also, these actions do not require any action from a PR author.
@@ -89,17 +91,17 @@ async function run(): Promise<void> {
         const isCreatorAssigned = pullRequestContext.assignees.find((u: Assignee) => u?.login === pullRequestContext.user.login);
         if (!isCreatorAssigned) {
             await assignPrCreator(github.context, repoOctokit, pullRequest);
-            core.info('Creator successfully assigned');
+            core.info('Creator successfully assigned.');
         } else {
-            core.info('Creator already assigned');
+            core.info('Creator already assigned.');
         }
 
         // 2. Assigns current milestone if not already assigned.
         if (!pullRequestContext.milestone) {
             const milestoneTitle = await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
-            core.info(`Milestone successfully filled with ${milestoneTitle}`);
+            core.info(`Milestone successfully filled with ${milestoneTitle}.`);
         } else {
-            core.info('Milestone already assigned');
+            core.info('Milestone already assigned.');
         }
 
         // 3. Adds team label if not already there.
@@ -114,7 +116,7 @@ async function run(): Promise<void> {
         // 4. Checks if PR is tested and adds a `tested` label if so.
         const isTested = await isPullRequestTested(repoOctokit, pullRequest);
         if (isTested) {
-            core.info('PR is tested');
+            core.info('PR is tested.');
             await repoOctokit.rest.issues.addLabels({
                 owner: ORGANIZATION,
                 repo: pullRequest.base.repo.name,
@@ -123,21 +125,16 @@ async function run(): Promise<void> {
             });
             core.info(`Label ${TESTED_LABEL_NAME} successfully added`);
         } else {
-            core.info('PR is not tested');
+            core.info('PR is not tested.');
         }
 
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
-        try {
-            await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true);
-        } catch (err) {
-            core.info('Function ensureCorrectLinkingAndEstimates() has failed on dry run');
-            console.error(err); // eslint-disable-line no-console
-            core.info(`Sleeping for ${DRY_RUN_SLEEP_MINS} minutes`);
-            await new Promise((resolve) => setTimeout(resolve, DRY_RUN_SLEEP_MINS * 60000));
-            core.info('Running check again');
-            await ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, false);
-        }
+        await retry(
+            () => ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true),
+            LINKING_CHECK_RETRIES,
+            LINKING_CHECK_DELAY_MILLIS,
+        );
     } catch (error) {
         if (error instanceof Error) {
             core.error(error);

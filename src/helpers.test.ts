@@ -9,6 +9,7 @@ import {
     getLinkedEpics,
     ZenhubTimelineItem,
     isTestFilePath,
+    retry,
 } from './helpers';
 
 type Milestone = components['schemas']['milestone'];
@@ -152,6 +153,32 @@ describe('isTestFilePath', () => {
         expect(isTestFilePath('something/test/something')).toBe(true);
         expect(isTestFilePath('something/tests/something')).toBe(true);
         expect(isTestFilePath('something/non-test/something')).toBe(false);
+    });
+});
+
+describe('retry', () => {
+    test('works correctly when succeeds', async () => {
+        let counter = 0;
+
+        await retry(async () => {
+            counter++;
+            if (counter < 3) throw new Error('Some error');
+        }, 5, 10);
+
+        expect(counter).toBe(3);
+    });
+
+    test('works correctly when succeeds', async () => {
+        let counter = 0;
+
+        await expect(
+            retry(async () => {
+                counter++;
+                throw new Error('Some error');
+            }, 5, 10),
+        ).rejects.toEqual(new Error('Some error'));
+
+        expect(counter).toBe(6);
     });
 });
 
