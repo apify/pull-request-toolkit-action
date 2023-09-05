@@ -135,6 +135,8 @@ async function run(): Promise<void> {
             LINKING_CHECK_RETRIES,
             LINKING_CHECK_DELAY_MILLIS,
         );
+        core.info('Pull request is correctly linked to ZenHub issue, epic, or is adhoc and has an estimate.');
+        core.info('All checks passed!');
     } catch (error) {
         if (error instanceof Error) {
             core.error(error);

@@ -547,6 +547,8 @@ async function run() {
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
         await (0, helpers_1.retry)(() => (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, true), consts_1.LINKING_CHECK_RETRIES, consts_1.LINKING_CHECK_DELAY_MILLIS);
+        core.info('Pull request is correctly linked to ZenHub issue, epic, or is adhoc and has an estimate.');
+        core.info('All checks passed!');
     }
     catch (error) {
         if (error instanceof Error) {
