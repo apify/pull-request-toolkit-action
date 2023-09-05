@@ -408,7 +408,7 @@ export async function retry(func: () => Promise<void>, retries: number, delayMil
         } catch (err) {
             if (currentRetry === retries) throw err;
 
-            core.info(`An attempt has failed. Retrying in ${retries / 1000} secs...`);
+            core.info(`An attempt has failed. Retrying in ${delayMillis / 1000} secs...`);
             if (err instanceof Error) console.error(err.message); // eslint-disable-line no-console
             await new Promise((resolve) => setTimeout(resolve, delayMillis));
             currentRetry++;
