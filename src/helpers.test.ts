@@ -162,7 +162,10 @@ describe('retry', () => {
 
         await retry(async () => {
             counter++;
+<<<<<<< HEAD
 
+=======
+>>>>>>> 0db0a1bb9f3a45dd0a4156e58f17423c6a53708e
             if (counter < 3) throw new Error('Some error');
         }, 5, 10);
 
