@@ -162,6 +162,7 @@ describe('retry', () => {
 
         await retry(async () => {
             counter++;
+
             if (counter < 3) throw new Error('Some error');
         }, 5, 10);
 
@@ -170,15 +171,19 @@ describe('retry', () => {
 
     test('works correctly when a failure occurs', async () => {
         let counter = 0;
+        let lastAttemptCalls = 0;
+
 
         await expect(
-            retry(async () => {
+            retry(async (isLastAttempt) => {
+                if (isLastAttempt) lastAttemptCalls++;
                 counter++;
                 throw new Error('Some error');
             }, 5, 10),
         ).rejects.toEqual(new Error('Some error'));
 
         expect(counter).toBe(6);
+        expect(lastAttemptCalls).toBe(1);
     });
 });
 

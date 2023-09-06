@@ -400,11 +400,13 @@ export async function isPullRequestTested(octokit: OctokitType, pullRequest: Pul
 /**
  * Retries given function `retries` times with `delayMillis` delay between each attempt if the function fails.
  */
-export async function retry(func: () => Promise<void>, retries: number, delayMillis: number): Promise<void> {
+export async function retry(func: (isLastAttempt: boolean) => Promise<void>, retries: number, delayMillis: number): Promise<void> {
     let currentRetry = 0;
     while (true) {
         try {
-            return await func();
+            const isLastAttempt = currentRetry === retries;
+
+            return await func(isLastAttempt);
         } catch (err) {
             if (currentRetry === retries) throw err;
 
