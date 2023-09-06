@@ -325,6 +325,8 @@ export async function fail(pullRequest: PullRequest, errorMessage: string, octok
             body: `⚠️ [Pull Request Tookit](https://github.com/apify/pull-request-toolkit-action) has failed!\n\n> ${errorMessage}`,
             event: 'COMMENT',
         });
+    } else {
+        core.info('It\'s a dry run, skipping comment creation!');
     }
 
     throw new Error(errorMessage);
