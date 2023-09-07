@@ -131,7 +131,7 @@ async function run(): Promise<void> {
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
         await retry(
-            () => ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, true),
+            (isLastAttempt) => ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, !isLastAttempt),
             LINKING_CHECK_RETRIES,
             LINKING_CHECK_DELAY_MILLIS,
         );

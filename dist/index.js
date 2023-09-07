@@ -323,6 +323,9 @@ async function fail(pullRequest, errorMessage, octokit, isDryRun = false) {
             event: 'COMMENT',
         });
     }
+    else {
+        core.info('It\'s a dry run, skipping comment creation!');
+    }
     throw new Error(errorMessage);
 }
 exports.fail = fail;
@@ -395,7 +398,8 @@ async function retry(func, retries, delayMillis) {
     let currentRetry = 0;
     while (true) {
         try {
-            return await func();
+            const isLastAttempt = currentRetry === retries;
+            return await func(isLastAttempt);
         }
         catch (err) {
             if (currentRetry === retries)
@@ -546,7 +550,7 @@ async function run() {
         }
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
-        await (0, helpers_1.retry)(() => (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, true), consts_1.LINKING_CHECK_RETRIES, consts_1.LINKING_CHECK_DELAY_MILLIS);
+        await (0, helpers_1.retry)((isLastAttempt) => (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit, !isLastAttempt), consts_1.LINKING_CHECK_RETRIES, consts_1.LINKING_CHECK_DELAY_MILLIS);
         core.info('Pull request is correctly linked to ZenHub issue, epic, or is adhoc and has an estimate.');
         core.info('All checks passed!');
     }
