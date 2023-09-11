@@ -173,7 +173,6 @@ describe('retry', () => {
         let counter = 0;
         let lastAttemptCalls = 0;
 
-
         await expect(
             retry(async (isLastAttempt) => {
                 if (isLastAttempt) lastAttemptCalls++;
