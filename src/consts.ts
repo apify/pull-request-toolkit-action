@@ -15,6 +15,6 @@ export const TEAM_NAME_TO_LABEL: { [name: string]: string} = {
 export const LINKING_CHECK_RETRIES = 8;
 export const LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
 
-export const TEAMS_NOT_USING_ZENHUB = ['Tooling'];
+export const TEAMS_NOT_USING_ZENHUB = [];
 
 export const TESTED_LABEL_NAME = 'tested';
