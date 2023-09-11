@@ -18,7 +18,7 @@ exports.TEAM_NAME_TO_LABEL = {
 };
 exports.LINKING_CHECK_RETRIES = 8;
 exports.LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
-exports.TEAMS_NOT_USING_ZENHUB = ['Tooling'];
+exports.TEAMS_NOT_USING_ZENHUB = ['put-some-team-here'];
 exports.TESTED_LABEL_NAME = 'tested';
 
 
