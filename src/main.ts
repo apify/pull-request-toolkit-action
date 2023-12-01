@@ -18,6 +18,7 @@ import {
     TEAMS_NOT_USING_ZENHUB,
     ORGANIZATION,
     TESTED_LABEL_NAME,
+    SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS,
 } from './consts';
 
 type Assignee = components['schemas']['simple-user'];
@@ -97,11 +98,11 @@ async function run(): Promise<void> {
         }
 
         // 2. Assigns current milestone if not already assigned.
-        if (!pullRequestContext.milestone) {
+        if (!pullRequestContext.milestone && !SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
             const milestoneTitle = await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
             core.info(`Milestone successfully filled with ${milestoneTitle}.`);
         } else {
-            core.info('Milestone already assigned.');
+            core.info('Milestone already assigned or team is skipped.');
         }
 
         // 3. Adds team label if not already there.
@@ -126,6 +127,11 @@ async function run(): Promise<void> {
             core.info(`Label ${TESTED_LABEL_NAME} successfully added`);
         } else {
             core.info('PR is not tested.');
+        }
+
+        if (SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
+            core.info(`Team ${teamName} is listed in SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);
+            return;
         }
 
         // On the other hand, this is a check that author of the PR correctly filled in the details.

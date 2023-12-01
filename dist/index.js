@@ -7,7 +7,7 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.TESTED_LABEL_NAME = exports.TEAMS_NOT_USING_ZENHUB = exports.LINKING_CHECK_DELAY_MILLIS = exports.LINKING_CHECK_RETRIES = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
+exports.TESTED_LABEL_NAME = exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = exports.TEAMS_NOT_USING_ZENHUB = exports.LINKING_CHECK_DELAY_MILLIS = exports.LINKING_CHECK_RETRIES = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
 exports.ORGANIZATION = 'apify';
 exports.PARENT_TEAM_SLUG = 'product-engineering';
 exports.ZENHUB_WORKSPACE_ID = '5f6454160d9f82000fa6733f';
@@ -19,6 +19,7 @@ exports.TEAM_NAME_TO_LABEL = {
 exports.LINKING_CHECK_RETRIES = 8;
 exports.LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
 exports.TEAMS_NOT_USING_ZENHUB = ['put-some-team-here'];
+exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs'];
 exports.TESTED_LABEL_NAME = 'tested';
 
 
@@ -517,12 +518,12 @@ async function run() {
             core.info('Creator already assigned.');
         }
         // 2. Assigns current milestone if not already assigned.
-        if (!pullRequestContext.milestone) {
+        if (!pullRequestContext.milestone && !consts_1.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
             const milestoneTitle = await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
             core.info(`Milestone successfully filled with ${milestoneTitle}.`);
         }
         else {
-            core.info('Milestone already assigned.');
+            core.info('Milestone already assigned or team is skipped.');
         }
         // 3. Adds team label if not already there.
         const teamLabel = pullRequestContext.labels.find((label) => label.name.startsWith(consts_1.TEAM_LABEL_PREFIX));
@@ -547,6 +548,10 @@ async function run() {
         }
         else {
             core.info('PR is not tested.');
+        }
+        if (consts_1.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
+            core.info(`Team ${teamName} is listed in SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);
+            return;
         }
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
