@@ -1,6 +1,16 @@
-import { components } from '@octokit/openapi-types/types.d';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
+import { components } from '@octokit/openapi-types';
+
+import {
+    TEAM_LABEL_PREFIX,
+    LINKING_CHECK_RETRIES,
+    LINKING_CHECK_DELAY_MILLIS,
+    TEAMS_NOT_USING_ZENHUB,
+    ORGANIZATION,
+    TESTED_LABEL_NAME,
+    SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS,
+} from './consts';
 import {
     assignPrCreator,
     fillCurrentMilestone,
@@ -11,15 +21,6 @@ import {
     isRepoIncludedInZenHubWorkspace,
     retry,
 } from './helpers';
-import {
-    TEAM_LABEL_PREFIX,
-    LINKING_CHECK_RETRIES,
-    LINKING_CHECK_DELAY_MILLIS,
-    TEAMS_NOT_USING_ZENHUB,
-    ORGANIZATION,
-    TESTED_LABEL_NAME,
-    SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS,
-} from './consts';
 
 type Assignee = components['schemas']['simple-user'];
 type Label = components['schemas']['label'];
@@ -137,7 +138,7 @@ async function run(): Promise<void> {
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
         await retry(
-            (isLastAttempt) => ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, !isLastAttempt),
+            async (isLastAttempt) => ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit, !isLastAttempt),
             LINKING_CHECK_RETRIES,
             LINKING_CHECK_DELAY_MILLIS,
         );
@@ -152,4 +153,4 @@ async function run(): Promise<void> {
     }
 }
 
-run();
+void run();

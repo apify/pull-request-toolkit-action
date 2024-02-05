@@ -1,5 +1,6 @@
 // import { getOctokit } from '@actions/github';
-import { components } from '@octokit/openapi-types/types.d';
+import { components } from '@octokit/openapi-types';
+
 import {
     findCurrentTeamMilestone,
     getTeamLabelName,

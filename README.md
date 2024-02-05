@@ -1,11 +1,11 @@
 # Pull request toolkit
 
-This action automates a couple of processes connected with the management of Github pull requests.
+This action automates a couple of processes connected with the management of GitHub pull requests.
 
 # What it does
 
 - Assigns PR to its creator.
-- Fills missing milestone with a current milestone from Zenhub.
+- Fills a missing milestone with a current milestone from Zenhub.
 - Assigns a team label (`t-[teamName]`) to the pull request.
 - Makes sure that:
   - PR is either linked with epic or issue or labeled as `adhoc`
@@ -13,17 +13,17 @@ This action automates a couple of processes connected with the management of Git
 
 ## Wishlist / TODOs
 
-- Github action for publishing of a new version.
-- Github action for lint and tests execution.
+- GitHub action for publishing of a new version.
+- GitHub action for lint and tests execution.
 - Use Docker image with runtime typescript compilation instead of committing a dist directory.
 
 # Action input
 
 | Name           | Description                                        | Example        | Required |
-| ---------------| -------------------------------------------------- | ---------------| -------- |
-| `repo-token`   | Repository Github token                            | `github-token` |      yes |
-| `org-token`    | Github token with read only access to organization | `github-token` |      yes |
-| `zenhub-token` | Github token with read only access to organization | `zenhub-token` |      yes |
+|----------------|----------------------------------------------------|----------------|----------|
+| `repo-token`   | Repository GitHub token                            | `github-token` | yes      |
+| `org-token`    | GitHub token with read only access to organization | `github-token` | yes      |
+| `zenhub-token` | GitHub token with read only access to organization | `zenhub-token` | yes      |
 
 # Example usage
 
