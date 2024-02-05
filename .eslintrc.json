@@ -1,6 +1,7 @@
 {
     "extends": "@apify/eslint-config-ts",
     "rules": {
-        "import/extensions": ["off", "never"]
+        "import/extensions": ["off", "never"],
+        "no-void": ["off", "never"]
     }
 }

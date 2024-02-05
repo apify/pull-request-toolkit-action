@@ -1,8 +1,8 @@
-import axios from 'axios';
 import * as core from '@actions/core';
 import { type getOctokit } from '@actions/github';
-import { components } from '@octokit/openapi-types/types.d';
 import { Context } from '@actions/github/lib/context.d';
+import { components } from '@octokit/openapi-types/types.d';
+import axios from 'axios';
 
 import {
     ORGANIZATION,
@@ -72,7 +72,7 @@ export async function findUsersTeamName(orgOctokit: OctokitType, userLogin: stri
     }
 
     return teamName;
-};
+}
 
 /**
  * Finds a current milestone for a given team.
@@ -96,7 +96,7 @@ export function findCurrentTeamMilestone(milestones: Milestone[], teamName: stri
     if (!foundMilestone) throw new Error(`Cannot find milestone for "${teamName}" team`);
 
     return foundMilestone;
-};
+}
 
 /**
  * Configures PR assignee to be the same as PR creater.
@@ -144,7 +144,7 @@ export async function fillCurrentMilestone(context: Context, octokit: OctokitTyp
  */
 export function getTeamLabelName(teamName: string): string {
     return TEAM_NAME_TO_LABEL[teamName] || `t-${teamName.toLowerCase()}`;
-};
+}
 
 /**
  * Assigns team label to the pull request.
@@ -158,7 +158,7 @@ export async function addTeamLabel(context: Context, octokit: OctokitType, pullR
         per_page: 100, // Max
     });
 
-    const isExistingLabel = labels.some((existingLabel) => existingLabel.name === teamLabelName);
+    const isExistingLabel = labels.some((existingLabel: { name: string }) => existingLabel.name === teamLabelName);
     if (!isExistingLabel) await fail(pullRequest, `Team label "${teamLabelName}" of team ${teamName} does not exists!`, octokit);
 
     await octokit.rest.issues.addLabels({
@@ -271,7 +271,7 @@ export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): P
     } while (pageInfo.hasNextPage);
 
     return repositories.map((repo) => repo.name).includes(repositoryName);
-};
+}
 
 /**
  * Makes sure that:
@@ -308,7 +308,7 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
     const issueEstimate = issueGraphqlResponse.data.data.issueByInfo.estimate?.value;
 
     if (!pullRequestEstimate && !issueEstimate) await fail(pullRequest, 'None of the pull request and linked issue has estimate', octokit, isDryRun);
-};
+}
 
 /**
  * Adds a comment describing what is wrong with the pull request setup and then fails the action.
@@ -348,7 +348,7 @@ export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssue
         ...lastItem.data.issue,
         repo: lastItem.data.issue_repository,
     };
-};
+}
 
 /**
  * Processes a track record of ZenHub events for a PR and returns a list of epics that are currently linked to the PR.
@@ -370,7 +370,7 @@ export function getLinkedEpics(timelineItems: ZenhubTimelineItem[]): ZenhubIssue
     }
 
     return [...connectedEpics.values()];
-};
+}
 
 export function isTestFilePath(filePath: string): boolean {
     const testFileNameRegex = /(\.|_|\w)*tests?(\.|_|\w)*\.\w{2,3}$/;
@@ -379,7 +379,7 @@ export function isTestFilePath(filePath: string): boolean {
         || filePath.includes('/tests/')
         || filePath.startsWith('test/')
         || testFileNameRegex.test(filePath);
-};
+}
 
 /**
  * Fetches a list of changed files and mark those that contain changes in test files.
@@ -397,14 +397,14 @@ export async function isPullRequestTested(octokit: OctokitType, pullRequest: Pul
     console.log(`- ${testFilePaths.join('\n- ')}`); // eslint-disable-line no-console
 
     return testFilePaths.length > 0;
-};
+}
 
 /**
  * Retries given function `retries` times with `delayMillis` delay between each attempt if the function fails.
  */
 export async function retry(func: (isLastAttempt: boolean) => Promise<void>, retries: number, delayMillis: number): Promise<void> {
     let currentRetry = 0;
-    while (true) {
+    while (true) { // eslint-disable-line no-constant-condition
         try {
             const isLastAttempt = currentRetry === retries;
 
@@ -418,4 +418,4 @@ export async function retry(func: (isLastAttempt: boolean) => Promise<void>, ret
             currentRetry++;
         }
     }
-};
+}
