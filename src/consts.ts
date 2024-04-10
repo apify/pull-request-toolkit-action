@@ -18,6 +18,6 @@ export const LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
 export const TEAMS_NOT_USING_ZENHUB = ['put-some-team-here'];
 
 // Excludes the team from the milestone, correct linking and estimate checks.
-export const SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs'];
+export const SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs', 'AI'];
 
 export const TESTED_LABEL_NAME = 'tested';
