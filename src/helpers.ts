@@ -296,7 +296,7 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
     ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!', octokit, isDryRun);
 
     if (!linkedIssue && !pullRequestEstimate) {
-        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request!', octokit, isDryRun);
+        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request in Zenhub!', octokit, isDryRun);
     }
     if (!linkedIssue) return;
 
