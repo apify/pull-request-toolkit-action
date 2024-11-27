@@ -59,5 +59,5 @@ jobs:
 1. Update code in `./src`
 2. Run `npm i`
 3. Run `npm run all`
-4. Commit all changes including `./disc` folder with built code.
+4. Commit all changes including `./dist` folder with built code.
 5. Publish a new version of an action using the new release (It needs to be done manually)
