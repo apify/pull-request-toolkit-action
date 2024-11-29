@@ -123,10 +123,10 @@ export async function fillCurrentMilestone(context: Context, octokit: OctokitTyp
         owner: context.repo.owner,
         repo: context.repo.repo,
     });
-    if (milestones.length === 0) await fail(pullRequest, 'No sprint milestone!', octokit);
+    if (milestones.length === 0) await fail(pullRequest, 'No sprint milestone!');
 
     const foundMilestone = findCurrentTeamMilestone(milestones, teamName);
-    if (!foundMilestone) await fail(pullRequest, 'Cannot find current sprint milestone!', octokit);
+    if (!foundMilestone) await fail(pullRequest, 'Cannot find current sprint milestone!');
 
     await octokit.rest.issues.update({
         owner: context.repo.owner,
@@ -159,7 +159,7 @@ export async function addTeamLabel(context: Context, octokit: OctokitType, pullR
     });
 
     const isExistingLabel = labels.some((existingLabel: { name: string }) => existingLabel.name === teamLabelName);
-    if (!isExistingLabel) await fail(pullRequest, `Team label "${teamLabelName}" of team ${teamName} does not exists!`, octokit);
+    if (!isExistingLabel) await fail(pullRequest, `Team label "${teamLabelName}" of team ${teamName} does not exists!`);
 
     await octokit.rest.issues.addLabels({
         owner: context.repo.owner,
@@ -278,7 +278,7 @@ export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): P
  * - PR either has issue or epic linked or has `adhoc` label
  * - either PR or linked issue has estimate
  */
-export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest, octokit: OctokitType, isDryRun: boolean): Promise<void> {
+export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest): Promise<void> {
     const pullRequestGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_PR_DETAILS_QUERY, {
         repositoryGhId: pullRequest.head.repo?.id,
         issueNumber: pullRequest.number,
@@ -293,10 +293,10 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
         !linkedIssue
         && linkedEpics.length === 0
         && !pullRequest.labels.some(({ name }) => name === 'adhoc')
-    ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!', octokit, isDryRun);
+    ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!');
 
     if (!linkedIssue && !pullRequestEstimate) {
-        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request in Zenhub!', octokit, isDryRun);
+        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request in Zenhub!');
     }
     if (!linkedIssue) return;
 
@@ -307,27 +307,15 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
     });
     const issueEstimate = issueGraphqlResponse.data.data.issueByInfo.estimate?.value;
 
-    if (!pullRequestEstimate && !issueEstimate) await fail(pullRequest, 'None of the pull request and linked issue has estimate', octokit, isDryRun);
+    if (!pullRequestEstimate && !issueEstimate) await fail(pullRequest, 'None of the pull request and linked issue has estimate');
 }
 
 /**
  * Adds a comment describing what is wrong with the pull request setup and then fails the action.
  * Comment is not send if isDryRun=true. Only error is thrown in such case.
  */
-export async function fail(pullRequest: PullRequest, errorMessage: string, octokit: OctokitType, isDryRun = false): Promise<void> {
+export async function fail(pullRequest: PullRequest, errorMessage: string): Promise<void> {
     if (!pullRequest.head.repo) throw new Error('Unknown repo!');
-
-    if (!isDryRun) {
-        await octokit.rest.pulls.createReview({
-            owner: ORGANIZATION,
-            repo: pullRequest.head.repo.name,
-            pull_number: pullRequest.number,
-            body: `⚠️ [Pull Request Tookit](https://github.com/apify/pull-request-toolkit-action) has failed!\n\n> ${errorMessage}`,
-            event: 'COMMENT',
-        });
-    } else {
-        core.info('It\'s a dry run, skipping comment creation!');
-    }
 
     throw new Error(errorMessage);
 }
