@@ -15,6 +15,7 @@ exports.ZENHUB_WORKSPACE_NAME = 'Platform Team';
 exports.TEAM_LABEL_PREFIX = 't-';
 exports.TEAM_NAME_TO_LABEL = {
     'Cash & Community': 't-c&c',
+    Infrastructure: 't-infra',
 };
 exports.LINKING_CHECK_RETRIES = 8;
 exports.LINKING_CHECK_DELAY_MILLIS = 15 * 1000;

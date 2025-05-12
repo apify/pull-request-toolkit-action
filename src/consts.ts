@@ -10,6 +10,7 @@ export const TEAM_LABEL_PREFIX = 't-';
 
 export const TEAM_NAME_TO_LABEL: { [name: string]: string} = {
     'Cash & Community': 't-c&c',
+    Infrastructure: 't-infra',
 };
 
 export const LINKING_CHECK_RETRIES = 8;
