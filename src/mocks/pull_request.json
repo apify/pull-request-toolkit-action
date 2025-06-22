@@ -84,11 +84,11 @@
         {
             "id": 3694093664,
             "node_id": "LA_kwDOEZBAxs7cL2Vg",
-            "url": "https://api.github.com/repos/apify/apify-core/labels/t-platform",
-            "name": "t-platform",
+            "url": "https://api.github.com/repos/apify/apify-core/labels/t-core-services",
+            "name": "t-core-services",
             "color": "C5DEF5",
             "default": false,
-            "description": "Issues with this label are in the ownership of the platform team."
+            "description": "Issues with this label are in the ownership of the Core Services team."
         }
     ],
     "milestone": {
@@ -98,7 +98,7 @@
         "id": 7168450,
         "node_id": "MI_kwDOEZBAxs4AbWHC",
         "number": 43,
-        "title": "22th Sprint - Platform team",
+        "title": "22th Sprint - Core Services team",
         "description": "",
         "creator": {
             "login": "mtrunkat",

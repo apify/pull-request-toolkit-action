@@ -44,7 +44,7 @@ describe('findCurrentTeamMilestone', () => {
             {
                 ...BASE_MILESTONE,
                 state: 'open',
-                title: '14th Sprint - Platform team',
+                title: '14th Sprint - Core Services team',
                 due_on: (new Date(Date.now() + 24 * 3600 * 1000)).toISOString(), // Must be in the future
             },
             {
@@ -54,8 +54,8 @@ describe('findCurrentTeamMilestone', () => {
                 due_on: (new Date(Date.now() + 24 * 3600 * 1000)).toISOString(), // Must be in the future
             },
         ];
-        const foundMilestone = findCurrentTeamMilestone(milestones, 'Platform');
-        expect(foundMilestone?.title).toBe('14th Sprint - Platform team');
+        const foundMilestone = findCurrentTeamMilestone(milestones, 'Core Services');
+        expect(foundMilestone?.title).toBe('14th Sprint - Core Services team');
     });
 
     test('ignores closed milestones', () => {
@@ -63,11 +63,11 @@ describe('findCurrentTeamMilestone', () => {
             {
                 ...BASE_MILESTONE,
                 state: 'closed',
-                title: '13th Sprint - Platform team',
+                title: '13th Sprint - Core Services team',
                 due_on: (new Date(Date.now() + 24 * 3600 * 1000)).toISOString(), // Must be in the future
             },
         ];
-        expect(() => findCurrentTeamMilestone(milestones, 'Platform')).toThrow('Cannot find milestone for "Platform" team');
+        expect(() => findCurrentTeamMilestone(milestones, 'Core Services')).toThrow('Cannot find milestone for "Core Services" team');
     });
 
     test('ignores past milestones', () => {
@@ -75,17 +75,17 @@ describe('findCurrentTeamMilestone', () => {
             {
                 ...BASE_MILESTONE,
                 state: 'open',
-                title: '13th Sprint - Platform team',
+                title: '13th Sprint - Core Services team',
                 due_on: '2021-05-23T07:00:00Z',
             },
         ];
-        expect(() => findCurrentTeamMilestone(milestones, 'Platform')).toThrow('Cannot find milestone for "Platform" team');
+        expect(() => findCurrentTeamMilestone(milestones, 'Core Services')).toThrow('Cannot find milestone for "Core Services" team');
     });
 });
 
 describe('getTeamLabelName', () => {
     test('works correctly for single word', () => {
-        expect(getTeamLabelName('Platform')).toBe('t-platform');
+        expect(getTeamLabelName('Core Services')).toBe('t-core-services');
     });
     test('works correctly for Cash & Community', () => {
         expect(getTeamLabelName('Cash & Community')).toBe('t-c&c');

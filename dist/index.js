@@ -149,11 +149,11 @@ async function fillCurrentMilestone(context, octokit, pullRequest, teamName) {
 }
 exports.fillCurrentMilestone = fillCurrentMilestone;
 /**
- * Converts team name into a label name (t-platform).
+ * Converts team name into a label name (t-core-services).
  * Custom mappings can be defined in TEAM_NAME_TO_LABEL constant.
  */
 function getTeamLabelName(teamName) {
-    return consts_1.TEAM_NAME_TO_LABEL[teamName] || `t-${teamName.toLowerCase()}`;
+    return consts_1.TEAM_NAME_TO_LABEL[teamName] || `t-${teamName.toLowerCase().replace(/ /g, '-')}`;
 }
 exports.getTeamLabelName = getTeamLabelName;
 /**

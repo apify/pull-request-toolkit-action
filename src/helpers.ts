@@ -139,11 +139,11 @@ export async function fillCurrentMilestone(context: Context, octokit: OctokitTyp
 }
 
 /**
- * Converts team name into a label name (t-platform).
+ * Converts team name into a label name (t-core-services).
  * Custom mappings can be defined in TEAM_NAME_TO_LABEL constant.
  */
 export function getTeamLabelName(teamName: string): string {
-    return TEAM_NAME_TO_LABEL[teamName] || `t-${teamName.toLowerCase()}`;
+    return TEAM_NAME_TO_LABEL[teamName] || `t-${teamName.toLowerCase().replace(/ /g, '-')}`;
 }
 
 /**
