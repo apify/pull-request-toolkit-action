@@ -335,9 +335,17 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest)
         issueNumber: linkedIssue?.number,
     });
 
+    // Happy paths:
+    // connected to epic ✅
+    if (isLinkedToEpic) return;
+    // adhoc and has estimate ✅
+    if (
+        pullRequest.labels.some(({ name }) => name === 'adhoc')
+        && pullRequestEstimate
+    ) return;
+
     if (
         !linkedIssue
-        && !isLinkedToEpic
         && !pullRequest.labels.some(({ name }) => name === 'adhoc')
     ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!');
 
@@ -346,6 +354,8 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest)
     }
     if (!linkedIssue) return;
 
+    // Final happy path - requires an additional query
+    // linked to issue that has estimate ✅
     const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
         repositoryGhId: linkedIssue.repo.gh_id,
         issueNumber: linkedIssue.number,
@@ -386,6 +396,8 @@ export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssue
 
 /**
  * Processes a track record of ZenHub events for a PR and returns a list of epics that are currently linked to the PR.
+ *
+ * @deprecated zenhub no longer suppoers linking epics like this. Use isIssueLinkedToEpic instead.
  */
 export function getLinkedEpics(timelineItems: ZenhubTimelineItem[]): ZenhubIssue[] {
     const connectEpicTimelintItems = timelineItems.filter(
