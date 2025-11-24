@@ -2,9 +2,6 @@ name: Check dist updates
 
 on:
   pull_request:
-    paths:
-      - "src/**"
-      - "dist/**"
 
 jobs:
   check-dist:
