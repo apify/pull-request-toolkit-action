@@ -36,5 +36,5 @@ jobs:
       - name: Fail if "src" changed but "dist" didn't
         if: ${{ steps.src_changed.outputs.src_changed == 'true' && steps.dist_changed.outputs.dist_changed == 'false' }}
         run: |
-          echo "::error::Changes detected in /src but no corresponding changes in /dist. Run 'npm run all' and commit the updated dist files."
+          echo "::error::Changes detected in \"/src\" but no corresponding changes in \"/dist\". Run 'npm run all' and commit the updated dist files."
           exit 1
