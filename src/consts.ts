@@ -16,7 +16,7 @@ export const TEAM_NAME_TO_LABEL: { [name: string]: string} = {
 export const LINKING_CHECK_RETRIES = 8;
 export const LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
 
-export const TEAMS_NOT_USING_ZENHUB = ['put-some-team-here', 'Service Account'];
+export const TEAMS_NOT_USING_ZENHUB = ['put-some-team-here-test-aaa', 'Service Account'];
 
 // Excludes the team from the milestone, correct linking and estimate checks.
 export const SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs', 'Service Account', 'AI'];
