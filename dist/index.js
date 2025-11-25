@@ -73,8 +73,10 @@ async function findUsersTeamName(orgOctokit, userLogin) {
     });
     if (!childTeams.length)
         throw new Error('No child teams found!');
+    // We skip the QA team as it is not owning any PRs, it is only used to assign for a release review.
+    const childTeamsWithoutQA = childTeams.filter((team) => team.name !== 'QA');
     let teamName = null;
-    for (const childTeam of childTeams) {
+    for (const childTeam of childTeamsWithoutQA) {
         const { data: members } = await orgOctokit.rest.teams.listMembersInOrg({
             org: consts_1.ORGANIZATION,
             team_slug: childTeam.slug,
