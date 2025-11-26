@@ -59,7 +59,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.retry = exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.isRepoIncludedInZenHubWorkspace = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
+exports.retry = exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.isRepoIncludedInZenHubWorkspace = exports.isIssueLinkedToEpic = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const axios_1 = __importDefault(__nccwpck_require__(8757));
 const consts_1 = __nccwpck_require__(4831);
@@ -73,8 +73,10 @@ async function findUsersTeamName(orgOctokit, userLogin) {
     });
     if (!childTeams.length)
         throw new Error('No child teams found!');
+    // We skip the QA team as it is not owning any PRs, it is only used to assign for a release review.
+    const childTeamsWithoutQA = childTeams.filter((team) => team.name !== 'QA');
     let teamName = null;
-    for (const childTeam of childTeams) {
+    for (const childTeam of childTeamsWithoutQA) {
         const { data: members } = await orgOctokit.rest.teams.listMembersInOrg({
             org: consts_1.ORGANIZATION,
             team_slug: childTeam.slug,
@@ -217,6 +219,29 @@ query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
     }
 }
 `;
+/**
+ * When fetching issues via timelineItems, we can't get the issue type.
+ * This query gets the zenhub issue type. Not to be confused with the github issue type.
+ * A zenhub epic will look like this: {
+ *   "type": "GithubIssue",
+ *   "issueType": {
+ *      "__typename": "ZenhubIssueType",
+ *      "name": "Epic",
+ *    }
+ *  }
+ */
+const ZENHUB_ISSUE_TYPE_QUERY = `
+query getEpicInfo($repositoryGhId: Int!, $issueNumber: Int!) {
+    issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
+        issueType {
+            __typename
+            ...on ZenhubIssueType {
+                name
+            }
+        }
+    }
+}
+`;
 const ZENHUB_ISSUE_ESTIMATE_QUERY = `
 query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
     issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
@@ -249,6 +274,19 @@ query getWorkspaceRepositories($workspaceName: String!, $endCursor: String) {
     }
 }
 `;
+/**
+ * Checks if the linked issue is a Zenhub epic.
+ */
+async function isIssueLinkedToEpic({ repositoryGhId, issueNumber }) {
+    if (!repositoryGhId || !issueNumber)
+        return false;
+    const epicGraphqlResponse = await queryZenhubGraphql('getEpicInfo', ZENHUB_ISSUE_TYPE_QUERY, {
+        repositoryGhId,
+        issueNumber,
+    });
+    return epicGraphqlResponse.data.data.issueByInfo.issueType.name === 'Epic';
+}
+exports.isIssueLinkedToEpic = isIssueLinkedToEpic;
 /**
  * Checks if the repository is included in the ZenHub workspace defined by ZENHUB_WORKSPACE_NAME.
  */
@@ -284,9 +322,19 @@ async function ensureCorrectLinkingAndEstimates(pullRequest) {
     });
     const pullRequestEstimate = pullRequestGraphqlResponse.data.data.issueByInfo.estimate?.value;
     const linkedIssue = getLinkedIssue(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
-    const linkedEpics = getLinkedEpics(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
+    const isLinkedToEpic = linkedIssue !== undefined && await isIssueLinkedToEpic({
+        repositoryGhId: pullRequest.head.repo?.id,
+        issueNumber: linkedIssue?.number,
+    });
+    // Happy paths:
+    // connected to epic + has estimate ✅
+    if (isLinkedToEpic && pullRequestEstimate)
+        return;
+    // adhoc and has estimate ✅
+    if (pullRequest.labels.some(({ name }) => name === 'adhoc')
+        && pullRequestEstimate)
+        return;
     if (!linkedIssue
-        && linkedEpics.length === 0
         && !pullRequest.labels.some(({ name }) => name === 'adhoc'))
         await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!');
     if (!linkedIssue && !pullRequestEstimate) {
@@ -294,6 +342,8 @@ async function ensureCorrectLinkingAndEstimates(pullRequest) {
     }
     if (!linkedIssue)
         return;
+    // Final happy path - requires an additional query
+    // linked to issue that has estimate ✅
     const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
         repositoryGhId: linkedIssue.repo.gh_id,
         issueNumber: linkedIssue.number,
@@ -331,6 +381,8 @@ function getLinkedIssue(timelineItems) {
 exports.getLinkedIssue = getLinkedIssue;
 /**
  * Processes a track record of ZenHub events for a PR and returns a list of epics that are currently linked to the PR.
+ *
+ * @deprecated zenhub no longer suppoers linking epics like this. Use isIssueLinkedToEpic instead.
  */
 function getLinkedEpics(timelineItems) {
     const connectEpicTimelintItems = timelineItems.filter((item) => ['issue.remove_issue_from_epic', 'issue.add_issue_to_epic'].includes(item.type));
