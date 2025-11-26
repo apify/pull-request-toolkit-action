@@ -215,6 +215,30 @@ query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
 }
 `;
 
+/**
+ * When fetching issues via timelineItems, we can't get the issue type.
+ * This query gets the zenhub issue type. Not to be confused with the github issue type.
+ * A zenhub epic will look like this: {
+ *   "type": "GithubIssue",
+ *   "issueType": {
+ *      "__typename": "ZenhubIssueType",
+ *      "name": "Epic",
+ *    }
+ *  }
+ */
+const ZENHUB_ISSUE_TYPE_QUERY = `
+query getEpicInfo($repositoryGhId: Int!, $issueNumber: Int!) {
+    issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
+        issueType {
+            __typename
+            ...on ZenhubIssueType {
+                name
+            }
+        }
+    }
+}
+`;
+
 const ZENHUB_ISSUE_ESTIMATE_QUERY = `
 query getIssueInfo($repositoryGhId: Int!, $issueNumber: Int!) {
     issueByInfo(repositoryGhId: $repositoryGhId, issueNumber: $issueNumber) {
@@ -248,6 +272,22 @@ query getWorkspaceRepositories($workspaceName: String!, $endCursor: String) {
     }
 }
 `;
+
+/**
+ * Checks if the linked issue is a Zenhub epic.
+ */
+export async function isIssueLinkedToEpic(
+    { repositoryGhId, issueNumber }:
+    { repositoryGhId: number | undefined, issueNumber: number | undefined },
+): Promise<boolean> {
+    if (!repositoryGhId || !issueNumber) return false;
+
+    const epicGraphqlResponse = await queryZenhubGraphql('getEpicInfo', ZENHUB_ISSUE_TYPE_QUERY, {
+        repositoryGhId,
+        issueNumber,
+    });
+    return epicGraphqlResponse.data.data.issueByInfo?.issueType?.name === 'Epic';
+}
 
 /**
  * Checks if the repository is included in the ZenHub workspace defined by ZENHUB_WORKSPACE_NAME.
@@ -290,11 +330,22 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest)
 
     const pullRequestEstimate = pullRequestGraphqlResponse.data.data.issueByInfo.estimate?.value;
     const linkedIssue = getLinkedIssue(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
-    const linkedEpics = getLinkedEpics(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
+    const isLinkedToEpic = linkedIssue !== undefined && await isIssueLinkedToEpic({
+        repositoryGhId: pullRequest.head.repo?.id,
+        issueNumber: linkedIssue?.number,
+    });
+
+    // Happy paths:
+    // connected to epic + has estimate ✅
+    if (isLinkedToEpic && pullRequestEstimate) return;
+    // adhoc and has estimate ✅
+    if (
+        pullRequest.labels.some(({ name }) => name === 'adhoc')
+        && pullRequestEstimate
+    ) return;
 
     if (
         !linkedIssue
-        && linkedEpics.length === 0
         && !pullRequest.labels.some(({ name }) => name === 'adhoc')
     ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!');
 
@@ -303,6 +354,8 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest)
     }
     if (!linkedIssue) return;
 
+    // Final happy path - requires an additional query
+    // linked to issue that has estimate ✅
     const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
         repositoryGhId: linkedIssue.repo.gh_id,
         issueNumber: linkedIssue.number,
@@ -343,6 +396,8 @@ export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssue
 
 /**
  * Processes a track record of ZenHub events for a PR and returns a list of epics that are currently linked to the PR.
+ *
+ * @deprecated zenhub no longer supports linking epics like this. Use isIssueLinkedToEpic instead.
  */
 export function getLinkedEpics(timelineItems: ZenhubTimelineItem[]): ZenhubIssue[] {
     const connectEpicTimelintItems = timelineItems.filter(
