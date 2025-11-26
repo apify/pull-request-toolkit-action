@@ -1,0 +1,37 @@
+name: Check dist updates
+
+on:
+  pull_request:
+
+jobs:
+  check-dist:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed so we can diff properly
+
+      - name: Check for src changes
+        id: src_changed
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/'; then
+            echo "src_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "src_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for dist changes
+        id: dist_changed
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^dist/'; then
+            echo "dist_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "dist_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fail if "src" changed but "dist" didn't
+        if: ${{ steps.src_changed.outputs.src_changed == 'true' && steps.dist_changed.outputs.dist_changed == 'false' }}
+        run: |
+          echo "::error::Changes detected in \"/src\" but no corresponding changes in \"/dist\". Run 'npm run all' and commit the updated dist files."
+          exit 1
