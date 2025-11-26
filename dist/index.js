@@ -284,7 +284,7 @@ async function isIssueLinkedToEpic({ repositoryGhId, issueNumber }) {
         repositoryGhId,
         issueNumber,
     });
-    return epicGraphqlResponse.data.data.issueByInfo.issueType.name === 'Epic';
+    return epicGraphqlResponse.data.data.issueByInfo?.issueType?.name === 'Epic';
 }
 exports.isIssueLinkedToEpic = isIssueLinkedToEpic;
 /**
@@ -382,7 +382,7 @@ exports.getLinkedIssue = getLinkedIssue;
 /**
  * Processes a track record of ZenHub events for a PR and returns a list of epics that are currently linked to the PR.
  *
- * @deprecated zenhub no longer suppoers linking epics like this. Use isIssueLinkedToEpic instead.
+ * @deprecated zenhub no longer supports linking epics like this. Use isIssueLinkedToEpic instead.
  */
 function getLinkedEpics(timelineItems) {
     const connectEpicTimelintItems = timelineItems.filter((item) => ['issue.remove_issue_from_epic', 'issue.add_issue_to_epic'].includes(item.type));
