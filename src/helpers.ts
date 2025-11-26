@@ -330,14 +330,14 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest)
 
     const pullRequestEstimate = pullRequestGraphqlResponse.data.data.issueByInfo.estimate?.value;
     const linkedIssue = getLinkedIssue(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
-    const isLinkedToEpic = await isIssueLinkedToEpic({
+    const isLinkedToEpic = linkedIssue !== undefined && await isIssueLinkedToEpic({
         repositoryGhId: pullRequest.head.repo?.id,
         issueNumber: linkedIssue?.number,
     });
 
     // Happy paths:
-    // connected to epic ✅
-    if (isLinkedToEpic) return;
+    // connected to epic + has estimate ✅
+    if (isLinkedToEpic && pullRequestEstimate) return;
     // adhoc and has estimate ✅
     if (
         pullRequest.labels.some(({ name }) => name === 'adhoc')
