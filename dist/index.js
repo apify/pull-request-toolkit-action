@@ -465,13 +465,24 @@ async function run() {
             repo: pullRequestContext.base.repo.name,
             pull_number: pullRequestContext.number,
         });
+        let user = pullRequestContext.user.login;
+        if (user.toLowerCase() === 'copilot') {
+            // copilot assigns the user who initiated the PR, let's use that
+            const otherAssignees = pullRequest.assignees?.filter((assignee) => assignee.login.toLowerCase() !== 'copilot');
+            if (otherAssignees?.length !== 1) {
+                core.warning('PR created by Copilot, and there isn\'t exactly one other assignee -> cannot determine user. Skipping toolkit action.');
+                return;
+            }
+            user = otherAssignees[0].login;
+            core.info(`PR created by Copilot on behalf of ${user}, proceeding.`);
+        }
         // Skip the PR if not a member of one of the product teams.
-        const teamName = await (0, helpers_1.findUsersTeamName)(orgOctokit, pullRequestContext.user.login);
+        const teamName = await (0, helpers_1.findUsersTeamName)(orgOctokit, user);
         if (!teamName) {
-            core.warning(`User ${pullRequestContext.user.login} is not a member of team. Skipping toolkit action.`);
+            core.warning(`User ${user} is not a member of team. Skipping toolkit action.`);
             return;
         }
-        core.info(`User ${pullRequestContext.user.login} belongs to a ${teamName} team.`);
+        core.info(`User ${user} belongs to a ${teamName} team.`);
         // Skip if the repository is not connected to the ZenHub workspace.
         const belongsToZenhub = await (0, helpers_1.isRepoIncludedInZenHubWorkspace)(pullRequest.base.repo.name);
         if (!belongsToZenhub) {
@@ -489,7 +500,7 @@ async function run() {
         // All these 4 actions below are idempotent, so they can be run on every PR update.
         // Also, these actions do not require any action from a PR author.
         // 1. Assigns PR creator if not already assigned.
-        const isCreatorAssigned = pullRequestContext.assignees.find((u) => u?.login === pullRequestContext.user.login);
+        const isCreatorAssigned = pullRequestContext.assignees.find((u) => u?.login === user);
         if (!isCreatorAssigned) {
             await (0, helpers_1.assignPrCreator)(github.context, repoOctokit, pullRequest);
             core.info('Creator successfully assigned.');
