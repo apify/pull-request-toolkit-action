@@ -454,9 +454,6 @@ async function run() {
         // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = core.getInput('repo-token');
         const repoOctokit = github.getOctokit(repoToken);
-        // Organization token providing read-only access to the organization.
-        const orgToken = core.getInput('org-token');
-        const orgOctokit = github.getOctokit(orgToken);
         const pullRequestContext = github.context.payload.pull_request;
         if (!pullRequestContext)
             throw new Error('Action works only for PRs!');
@@ -466,6 +463,10 @@ async function run() {
             pull_number: pullRequestContext.number,
         });
         let user = pullRequestContext.user.login;
+        if (user.toLowerCase() === 'dependabot[bot]') {
+            core.info(`Skipping toolkit action for a PR from Dependabot.`);
+            return;
+        }
         if (user.toLowerCase() === 'copilot') {
             // copilot assigns the user who initiated the PR, let's use that
             const otherAssignees = pullRequest.assignees?.filter((assignee) => assignee.login.toLowerCase() !== 'copilot');
@@ -476,6 +477,9 @@ async function run() {
             user = otherAssignees[0].login;
             core.info(`PR created by Copilot on behalf of ${user}, proceeding.`);
         }
+        // Organization token providing read-only access to the organization.
+        const orgToken = core.getInput('org-token');
+        const orgOctokit = github.getOctokit(orgToken);
         // Skip the PR if not a member of one of the product teams.
         const teamName = await (0, helpers_1.findUsersTeamName)(orgOctokit, user);
         if (!teamName) {
