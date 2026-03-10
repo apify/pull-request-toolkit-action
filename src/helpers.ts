@@ -54,6 +54,7 @@ export async function findUsersTeamName(orgOctokit: OctokitType, userLogin: stri
     const { data: childTeams } = await orgOctokit.rest.teams.listChildInOrg({
         org: ORGANIZATION,
         team_slug: PARENT_TEAM_SLUG,
+        per_page: 100,
     });
     if (!childTeams.length) throw new Error('No child teams found!');
 
@@ -122,9 +123,10 @@ export async function assignPrCreator(context: Context, octokit: OctokitType, pu
  */
 export async function fillCurrentMilestone(context: Context, octokit: OctokitType, pullRequest: PullRequest, teamName: string): Promise<string> {
     // Assign PR to right sprint milestone
-    const { data: milestones } = await octokit.request('GET /repos/{owner}/{repo}/milestones', {
+    const milestones = await octokit.paginate('GET /repos/{owner}/{repo}/milestones', {
         owner: context.repo.owner,
         repo: context.repo.repo,
+        per_page: 100,
     });
     if (milestones.length === 0) await fail(pullRequest, 'No sprint milestone!');
 
