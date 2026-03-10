@@ -26,10 +26,8 @@ exports.TESTED_LABEL_NAME = 'tested';
 // Map of team name → GitHub Project number (the number visible in the project URL:
 // github.com/orgs/apify/projects/<number>).
 // Only teams listed here will have their PRs added to a GitHub Project board and assigned to the current Sprint.
-// Teams not listed here continue using ZenHub as before.
 exports.TEAM_TO_PROJECT_NUMBER = {
-// 'Core Services': 42,
-// Add entries as teams migrate from ZenHub to GitHub Projects.
+    Integrations: 54,
 };
 // The exact name of the iteration field in the GitHub Project board.
 exports.SPRINT_FIELD_NAME = 'Sprint';
@@ -657,13 +655,11 @@ async function run() {
         }
         // 5. Adds PR to team's GitHub Project board and assigns to the current Sprint (if team is migrated to GitHub Projects).
         if (consts_1.TEAM_TO_PROJECT_NUMBER[teamName] !== undefined) {
-            const projectToken = core.getInput('github-project-token');
-            if (!projectToken) {
-                core.warning(`Team ${teamName} has a GitHub Project configured but github-project-token is not set. Skipping sprint assignment.`);
+            if (!orgToken) {
+                core.warning(`Team ${teamName} has a GitHub Project configured but token is not set. Skipping sprint assignment.`);
             }
             else {
-                const projectOctokit = github.getOctokit(projectToken);
-                const sprintTitle = await (0, helpers_1.assignPrToProjectSprint)(projectOctokit, pullRequest, teamName);
+                const sprintTitle = await (0, helpers_1.assignPrToProjectSprint)(orgOctokit, pullRequest, teamName);
                 core.info(`PR added to GitHub Project board and assigned to sprint "${sprintTitle}".`);
             }
         }
