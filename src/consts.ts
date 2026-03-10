@@ -22,3 +22,13 @@ export const TEAMS_NOT_USING_ZENHUB = ['put-some-team-here', 'Service Account'];
 export const SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs', 'Service Account', 'AI'];
 
 export const TESTED_LABEL_NAME = 'tested';
+
+// Map of team name → GitHub Project number (the number visible in the project URL:
+// github.com/orgs/apify/projects/<number>).
+// Only teams listed here will have their PRs added to a GitHub Project board and assigned to the current Sprint.
+export const TEAM_TO_PROJECT_NUMBER: Record<string, number> = {
+    Integrations: 54,
+};
+
+// The exact name of the iteration field in the GitHub Project board.
+export const SPRINT_FIELD_NAME = 'Sprint';
