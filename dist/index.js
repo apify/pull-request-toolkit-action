@@ -7,7 +7,7 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.TESTED_LABEL_NAME = exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = exports.TEAMS_NOT_USING_ZENHUB = exports.LINKING_CHECK_DELAY_MILLIS = exports.LINKING_CHECK_RETRIES = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
+exports.SPRINT_FIELD_NAME = exports.TEAM_TO_PROJECT_NUMBER = exports.TESTED_LABEL_NAME = exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = exports.TEAMS_NOT_USING_ZENHUB = exports.LINKING_CHECK_DELAY_MILLIS = exports.LINKING_CHECK_RETRIES = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
 exports.ORGANIZATION = 'apify';
 exports.PARENT_TEAM_SLUG = 'product-engineering';
 exports.ZENHUB_WORKSPACE_ID = '5f6454160d9f82000fa6733f';
@@ -23,6 +23,16 @@ exports.TEAMS_NOT_USING_ZENHUB = ['put-some-team-here', 'Service Account'];
 // Excludes the team from the milestone, correct linking and estimate checks.
 exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs', 'Service Account', 'AI'];
 exports.TESTED_LABEL_NAME = 'tested';
+// Map of team name → GitHub Project number (the number visible in the project URL:
+// github.com/orgs/apify/projects/<number>).
+// Only teams listed here will have their PRs added to a GitHub Project board and assigned to the current Sprint.
+// Teams not listed here continue using ZenHub as before.
+exports.TEAM_TO_PROJECT_NUMBER = {
+// 'Core Services': 42,
+// Add entries as teams migrate from ZenHub to GitHub Projects.
+};
+// The exact name of the iteration field in the GitHub Project board.
+exports.SPRINT_FIELD_NAME = 'Sprint';
 
 
 /***/ }),
@@ -59,7 +69,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.retry = exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.isRepoIncludedInZenHubWorkspace = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
+exports.retry = exports.assignPrToProjectSprint = exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.isRepoIncludedInZenHubWorkspace = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const axios_1 = __importDefault(__nccwpck_require__(8757));
 const consts_1 = __nccwpck_require__(4831);
@@ -375,6 +385,107 @@ async function isPullRequestTested(octokit, pullRequest) {
 }
 exports.isPullRequestTested = isPullRequestTested;
 /**
+ * Resolves a GitHub Project number to its GraphQL node ID.
+ */
+async function getProjectNodeId(octokit, projectNumber) {
+    const response = await octokit.graphql(`query getProject($org: String!, $number: Int!) {
+            organization(login: $org) {
+                projectV2(number: $number) {
+                    id
+                }
+            }
+        }`, { org: consts_1.ORGANIZATION, number: projectNumber });
+    return response.organization.projectV2.id;
+}
+/**
+ * Finds the active Sprint iteration in a GitHub Project's iteration field.
+ * An iteration is considered active if today falls within its startDate + duration window.
+ */
+async function findCurrentSprintIteration(octokit, projectId) {
+    const response = await octokit.graphql(`query getProjectFields($projectId: ID!) {
+            node(id: $projectId) {
+                ... on ProjectV2 {
+                    fields(first: 20) {
+                        nodes {
+                            ... on ProjectV2IterationField {
+                                id
+                                name
+                                configuration {
+                                    iterations {
+                                        id
+                                        title
+                                        startDate
+                                        duration
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }`, { projectId });
+    const fields = response.node.fields.nodes;
+    const sprintField = fields.find((field) => 'configuration' in field && field.name === consts_1.SPRINT_FIELD_NAME);
+    if (!sprintField)
+        throw new Error(`No iteration field named "${consts_1.SPRINT_FIELD_NAME}" found in project`);
+    const now = new Date();
+    const activeIteration = sprintField.configuration.iterations.find((iteration) => {
+        const start = new Date(iteration.startDate);
+        const end = new Date(start);
+        end.setDate(end.getDate() + iteration.duration);
+        return start <= now && now <= end;
+    });
+    if (!activeIteration)
+        throw new Error(`No active sprint found in project field "${consts_1.SPRINT_FIELD_NAME}"`);
+    return { fieldId: sprintField.id, iterationId: activeIteration.id, title: activeIteration.title };
+}
+/**
+ * Adds a pull request to a GitHub Project board.
+ * Idempotent — returns the existing item ID if the PR is already in the project.
+ */
+async function addPrToProject(octokit, projectId, prNodeId) {
+    const response = await octokit.graphql(`mutation addToProject($projectId: ID!, $contentId: ID!) {
+            addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                item {
+                    id
+                }
+            }
+        }`, { projectId, contentId: prNodeId });
+    return response.addProjectV2ItemById.item.id;
+}
+/**
+ * Sets the Sprint iteration field on a GitHub Project item.
+ */
+async function setProjectItemSprint(octokit, projectId, itemId, fieldId, iterationId) {
+    await octokit.graphql(`mutation setSprint($projectId: ID!, $itemId: ID!, $fieldId: ID!, $iterationId: String!) {
+            updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId,
+                itemId: $itemId,
+                fieldId: $fieldId,
+                value: { iterationId: $iterationId }
+            }) {
+                projectV2Item {
+                    id
+                }
+            }
+        }`, { projectId, itemId, fieldId, iterationId });
+}
+/**
+ * Adds a pull request to the team's GitHub Project board and assigns it to the current Sprint iteration.
+ * Only runs if the team has an entry in TEAM_TO_PROJECT_NUMBER.
+ */
+async function assignPrToProjectSprint(octokit, pullRequest, teamName) {
+    const projectNumber = consts_1.TEAM_TO_PROJECT_NUMBER[teamName];
+    if (!projectNumber)
+        throw new Error(`No GitHub Project configured for team "${teamName}"`);
+    const projectId = await getProjectNodeId(octokit, projectNumber);
+    const { fieldId, iterationId, title } = await findCurrentSprintIteration(octokit, projectId);
+    const itemId = await addPrToProject(octokit, projectId, pullRequest.node_id);
+    await setProjectItemSprint(octokit, projectId, itemId, fieldId, iterationId);
+    return title;
+}
+exports.assignPrToProjectSprint = assignPrToProjectSprint;
+/**
  * Retries given function `retries` times with `delayMillis` delay between each attempt if the function fails.
  */
 async function retry(func, retries, delayMillis) {
@@ -543,6 +654,21 @@ async function run() {
         }
         else {
             core.info('PR is not tested.');
+        }
+        // 5. Adds PR to team's GitHub Project board and assigns to the current Sprint (if team is migrated to GitHub Projects).
+        if (consts_1.TEAM_TO_PROJECT_NUMBER[teamName] !== undefined) {
+            const projectToken = core.getInput('github-project-token');
+            if (!projectToken) {
+                core.warning(`Team ${teamName} has a GitHub Project configured but github-project-token is not set. Skipping sprint assignment.`);
+            }
+            else {
+                const projectOctokit = github.getOctokit(projectToken);
+                const sprintTitle = await (0, helpers_1.assignPrToProjectSprint)(projectOctokit, pullRequest, teamName);
+                core.info(`PR added to GitHub Project board and assigned to sprint "${sprintTitle}".`);
+            }
+        }
+        else {
+            core.info(`Team ${teamName} is not using GitHub Projects. Skipping sprint assignment.`);
         }
         if (consts_1.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
             core.info(`Team ${teamName} is listed in SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);

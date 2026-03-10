@@ -7,6 +7,7 @@ import {
     LINKING_CHECK_RETRIES,
     LINKING_CHECK_DELAY_MILLIS,
     TEAMS_NOT_USING_ZENHUB,
+    TEAM_TO_PROJECT_NUMBER,
     ORGANIZATION,
     TESTED_LABEL_NAME,
     SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS,
@@ -16,6 +17,7 @@ import {
     fillCurrentMilestone,
     findUsersTeamName,
     addTeamLabel,
+    assignPrToProjectSprint,
     ensureCorrectLinkingAndEstimates,
     isPullRequestTested,
     isRepoIncludedInZenHubWorkspace,
@@ -144,6 +146,18 @@ async function run(): Promise<void> {
             core.info(`Label ${TESTED_LABEL_NAME} successfully added`);
         } else {
             core.info('PR is not tested.');
+        }
+
+        // 5. Adds PR to team's GitHub Project board and assigns to the current Sprint (if team is migrated to GitHub Projects).
+        if (TEAM_TO_PROJECT_NUMBER[teamName] !== undefined) {
+            if (!orgToken) {
+                core.warning(`Team ${teamName} has a GitHub Project configured but token is not set. Skipping sprint assignment.`);
+            } else {
+                const sprintTitle = await assignPrToProjectSprint(orgOctokit, pullRequest, teamName);
+                core.info(`PR added to GitHub Project board and assigned to sprint "${sprintTitle}".`);
+            }
+        } else {
+            core.info(`Team ${teamName} is not using GitHub Projects. Skipping sprint assignment.`);
         }
 
         if (SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {

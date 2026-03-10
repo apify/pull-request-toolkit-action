@@ -7,7 +7,7 @@ inputs:
         description: 'Repository Github token'
     org-token:
         required: true
-        description: 'Github token with read only access to organization'
+        description: 'Github token with read and write access (required for GitHub Projects v2 sprint assignment)'
     zenhub-token:
         required: true
         description: 'ZenHub API token'

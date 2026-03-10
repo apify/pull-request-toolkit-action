@@ -11,7 +11,14 @@ import {
     ZenhubTimelineItem,
     isTestFilePath,
     retry,
+    assignPrToProjectSprint,
 } from './helpers';
+
+jest.mock('./consts', () => ({
+    ...jest.requireActual('./consts'),
+    TEAM_TO_PROJECT_NUMBER: { 'Core Services': 42 },
+    SPRINT_FIELD_NAME: 'Sprint',
+}));
 
 type Milestone = components['schemas']['milestone'];
 
@@ -184,6 +191,126 @@ describe('retry', () => {
 
         expect(counter).toBe(6);
         expect(lastAttemptCalls).toBe(1);
+    });
+});
+
+describe('assignPrToProjectSprint', () => {
+    const MOCK_PR = { node_id: 'PR_node_id_123' } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    test('throws when team has no project configured', async () => {
+        const mockOctokit = { graphql: jest.fn() } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+        await expect(assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Unknown Team')).rejects.toThrow(
+            'No GitHub Project configured for team "Unknown Team"',
+        );
+        expect(mockOctokit.graphql).not.toHaveBeenCalled();
+    });
+
+    test('adds PR to project and sets current sprint', async () => {
+        const today = new Date();
+        const startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 3); // started 3 days ago
+
+        const mockOctokit = {
+            graphql: jest.fn()
+                // 1st call: getProjectNodeId
+                .mockResolvedValueOnce({ organization: { projectV2: { id: 'PROJECT_NODE_ID' } } })
+                // 2nd call: findCurrentSprintIteration
+                .mockResolvedValueOnce({
+                    node: {
+                        fields: {
+                            nodes: [
+                                {
+                                    id: 'FIELD_ID',
+                                    name: 'Sprint',
+                                    configuration: {
+                                        iterations: [
+                                            {
+                                                id: 'ITER_ID',
+                                                title: 'Sprint 10',
+                                                startDate: startDate.toISOString().split('T')[0],
+                                                duration: 14,
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                })
+                // 3rd call: addPrToProject
+                .mockResolvedValueOnce({ addProjectV2ItemById: { item: { id: 'ITEM_ID' } } })
+                // 4th call: setProjectItemSprint
+                .mockResolvedValueOnce({}),
+        } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        const sprintTitle = await assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Core Services');
+
+        expect(sprintTitle).toBe('Sprint 10');
+        expect(mockOctokit.graphql).toHaveBeenCalledTimes(4);
+
+        // Verify addPrToProject was called with correct PR node ID
+        expect(mockOctokit.graphql).toHaveBeenNthCalledWith(3, expect.any(String), {
+            projectId: 'PROJECT_NODE_ID',
+            contentId: 'PR_node_id_123',
+        });
+
+        // Verify setProjectItemSprint was called with resolved IDs
+        expect(mockOctokit.graphql).toHaveBeenNthCalledWith(4, expect.any(String), {
+            projectId: 'PROJECT_NODE_ID',
+            itemId: 'ITEM_ID',
+            fieldId: 'FIELD_ID',
+            iterationId: 'ITER_ID',
+        });
+    });
+
+    test('throws when no Sprint field exists in project', async () => {
+        const mockOctokit = {
+            graphql: jest.fn()
+                .mockResolvedValueOnce({ organization: { projectV2: { id: 'PROJECT_NODE_ID' } } })
+                .mockResolvedValueOnce({
+                    node: { fields: { nodes: [{ id: 'f1', name: 'Status' }] } },
+                }),
+        } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        await expect(assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Core Services')).rejects.toThrow(
+            'No iteration field named "Sprint" found in project',
+        );
+    });
+
+    test('throws when no active sprint iteration exists', async () => {
+        const pastStart = new Date();
+        pastStart.setDate(pastStart.getDate() - 30); // started 30 days ago, duration 14 → already ended
+
+        const mockOctokit = {
+            graphql: jest.fn()
+                .mockResolvedValueOnce({ organization: { projectV2: { id: 'PROJECT_NODE_ID' } } })
+                .mockResolvedValueOnce({
+                    node: {
+                        fields: {
+                            nodes: [
+                                {
+                                    id: 'FIELD_ID',
+                                    name: 'Sprint',
+                                    configuration: {
+                                        iterations: [
+                                            {
+                                                id: 'OLD_ITER',
+                                                title: 'Sprint 9',
+                                                startDate: pastStart.toISOString().split('T')[0],
+                                                duration: 14,
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                }),
+        } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        await expect(assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Core Services')).rejects.toThrow(
+            'No active sprint found in project field "Sprint"',
+        );
     });
 });
 

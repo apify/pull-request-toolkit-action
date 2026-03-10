@@ -8,6 +8,8 @@ import {
     ORGANIZATION,
     PARENT_TEAM_SLUG,
     TEAM_NAME_TO_LABEL,
+    TEAM_TO_PROJECT_NUMBER,
+    SPRINT_FIELD_NAME,
     ZENHUB_WORKSPACE_ID,
     ZENHUB_WORKSPACE_NAME,
 } from './consts';
@@ -388,6 +390,156 @@ export async function isPullRequestTested(octokit: OctokitType, pullRequest: Pul
     console.log(`- ${testFilePaths.join('\n- ')}`); // eslint-disable-line no-console
 
     return testFilePaths.length > 0;
+}
+
+type GitHubProjectIterationField = {
+    id: string;
+    name: string;
+    configuration: {
+        iterations: Array<{
+            id: string;
+            title: string;
+            startDate: string;
+            duration: number;
+        }>;
+    };
+};
+
+type GitHubProjectField = GitHubProjectIterationField | { id: string; name: string };
+
+/**
+ * Resolves a GitHub Project number to its GraphQL node ID.
+ */
+async function getProjectNodeId(octokit: OctokitType, projectNumber: number): Promise<string> {
+    const response = await octokit.graphql<{ organization: { projectV2: { id: string } } }>(
+        `query getProject($org: String!, $number: Int!) {
+            organization(login: $org) {
+                projectV2(number: $number) {
+                    id
+                }
+            }
+        }`,
+        { org: ORGANIZATION, number: projectNumber },
+    );
+    return response.organization.projectV2.id;
+}
+
+/**
+ * Finds the active Sprint iteration in a GitHub Project's iteration field.
+ * An iteration is considered active if today falls within its startDate + duration window.
+ */
+async function findCurrentSprintIteration(
+    octokit: OctokitType,
+    projectId: string,
+): Promise<{ fieldId: string; iterationId: string; title: string }> {
+    const response = await octokit.graphql<{ node: { fields: { nodes: GitHubProjectField[] } } }>(
+        `query getProjectFields($projectId: ID!) {
+            node(id: $projectId) {
+                ... on ProjectV2 {
+                    fields(first: 20) {
+                        nodes {
+                            ... on ProjectV2IterationField {
+                                id
+                                name
+                                configuration {
+                                    iterations {
+                                        id
+                                        title
+                                        startDate
+                                        duration
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }`,
+        { projectId },
+    );
+
+    const fields = response.node.fields.nodes;
+    const sprintField = fields.find(
+        (field): field is GitHubProjectIterationField =>
+            'configuration' in field && field.name === SPRINT_FIELD_NAME,
+    );
+    if (!sprintField) throw new Error(`No iteration field named "${SPRINT_FIELD_NAME}" found in project`);
+
+    const now = new Date();
+    const activeIteration = sprintField.configuration.iterations.find((iteration) => {
+        const start = new Date(iteration.startDate);
+        const end = new Date(start);
+        end.setDate(end.getDate() + iteration.duration);
+        return start <= now && now <= end;
+    });
+    if (!activeIteration) throw new Error(`No active sprint found in project field "${SPRINT_FIELD_NAME}"`);
+
+    return { fieldId: sprintField.id, iterationId: activeIteration.id, title: activeIteration.title };
+}
+
+/**
+ * Adds a pull request to a GitHub Project board.
+ * Idempotent — returns the existing item ID if the PR is already in the project.
+ */
+async function addPrToProject(octokit: OctokitType, projectId: string, prNodeId: string): Promise<string> {
+    const response = await octokit.graphql<{ addProjectV2ItemById: { item: { id: string } } }>(
+        `mutation addToProject($projectId: ID!, $contentId: ID!) {
+            addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                item {
+                    id
+                }
+            }
+        }`,
+        { projectId, contentId: prNodeId },
+    );
+    return response.addProjectV2ItemById.item.id;
+}
+
+/**
+ * Sets the Sprint iteration field on a GitHub Project item.
+ */
+async function setProjectItemSprint(
+    octokit: OctokitType,
+    projectId: string,
+    itemId: string,
+    fieldId: string,
+    iterationId: string,
+): Promise<void> {
+    await octokit.graphql(
+        `mutation setSprint($projectId: ID!, $itemId: ID!, $fieldId: ID!, $iterationId: String!) {
+            updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId,
+                itemId: $itemId,
+                fieldId: $fieldId,
+                value: { iterationId: $iterationId }
+            }) {
+                projectV2Item {
+                    id
+                }
+            }
+        }`,
+        { projectId, itemId, fieldId, iterationId },
+    );
+}
+
+/**
+ * Adds a pull request to the team's GitHub Project board and assigns it to the current Sprint iteration.
+ * Only runs if the team has an entry in TEAM_TO_PROJECT_NUMBER.
+ */
+export async function assignPrToProjectSprint(
+    octokit: OctokitType,
+    pullRequest: PullRequest,
+    teamName: string,
+): Promise<string> {
+    const projectNumber = TEAM_TO_PROJECT_NUMBER[teamName];
+    if (!projectNumber) throw new Error(`No GitHub Project configured for team "${teamName}"`);
+
+    const projectId = await getProjectNodeId(octokit, projectNumber);
+    const { fieldId, iterationId, title } = await findCurrentSprintIteration(octokit, projectId);
+    const itemId = await addPrToProject(octokit, projectId, pullRequest.node_id);
+    await setProjectItemSprint(octokit, projectId, itemId, fieldId, iterationId);
+
+    return title;
 }
 
 /**
