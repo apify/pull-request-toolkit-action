@@ -7,7 +7,7 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SPRINT_FIELD_NAME = exports.TEAM_TO_PROJECT_NUMBER = exports.TESTED_LABEL_NAME = exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = exports.TEAMS_NOT_USING_ZENHUB = exports.LINKING_CHECK_DELAY_MILLIS = exports.LINKING_CHECK_RETRIES = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
+exports.ESTIMATE_FIELD_NAME = exports.SPRINT_FIELD_NAME = exports.TEAM_TO_PROJECT_NUMBER = exports.TESTED_LABEL_NAME = exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = exports.TEAMS_NOT_USING_ZENHUB = exports.LINKING_CHECK_DELAY_MILLIS = exports.LINKING_CHECK_RETRIES = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
 exports.ORGANIZATION = 'apify';
 exports.PARENT_TEAM_SLUG = 'product-engineering';
 exports.ZENHUB_WORKSPACE_ID = '5f6454160d9f82000fa6733f';
@@ -31,6 +31,8 @@ exports.TEAM_TO_PROJECT_NUMBER = {
 };
 // The exact name of the iteration field in the GitHub Project board.
 exports.SPRINT_FIELD_NAME = 'Sprint';
+// The exact name of the number field used for estimates in GitHub Project boards.
+exports.ESTIMATE_FIELD_NAME = 'Estimate';
 
 
 /***/ }),
@@ -67,7 +69,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.retry = exports.assignPrToProjectSprint = exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.isRepoIncludedInZenHubWorkspace = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
+exports.retry = exports.assignPrToProjectSprint = exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.getGitHubProjectsEstimate = exports.getGitHubLinkedIssues = exports.isRepoIncludedInZenHubWorkspace = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const axios_1 = __importDefault(__nccwpck_require__(8757));
 const consts_1 = __nccwpck_require__(4831);
@@ -284,11 +286,84 @@ async function isRepoIncludedInZenHubWorkspace(repositoryName) {
 }
 exports.isRepoIncludedInZenHubWorkspace = isRepoIncludedInZenHubWorkspace;
 /**
+ * Fetches GitHub-native closing issue references for a PR (covers "Closes #N" keywords
+ * and issues linked via the sidebar Development section).
+ */
+async function getGitHubLinkedIssues(octokit, pullRequest) {
+    const response = await octokit.graphql(`query getClosingIssues($owner: String!, $repo: String!, $prNumber: Int!) {
+            repository(owner: $owner, name: $repo) {
+                pullRequest(number: $prNumber) {
+                    closingIssuesReferences(first: 25) {
+                        nodes {
+                            id
+                            number
+                            repository {
+                                name
+                                databaseId
+                            }
+                        }
+                    }
+                }
+            }
+        }`, {
+        owner: consts_1.ORGANIZATION,
+        repo: pullRequest.base.repo.name,
+        prNumber: pullRequest.number,
+    });
+    return response.repository.pullRequest.closingIssuesReferences.nodes.map((node) => ({
+        nodeId: node.id,
+        number: node.number,
+        repoName: node.repository.name,
+        repoGhId: node.repository.databaseId,
+    }));
+}
+exports.getGitHubLinkedIssues = getGitHubLinkedIssues;
+/**
+ * Checks if a PR or Issue has an estimate set in any GitHub Project board.
+ * Returns the numeric estimate value, or undefined if not found.
+ */
+async function getGitHubProjectsEstimate(octokit, nodeId) {
+    const response = await octokit.graphql(`query getProjectsEstimate($nodeId: ID!, $fieldName: String!) {
+            node(id: $nodeId) {
+                ... on PullRequest {
+                    projectItems(first: 10) {
+                        nodes {
+                            fieldValueByName(name: $fieldName) {
+                                ... on ProjectV2ItemFieldNumberValue {
+                                    number
+                                }
+                            }
+                        }
+                    }
+                }
+                ... on Issue {
+                    projectItems(first: 10) {
+                        nodes {
+                            fieldValueByName(name: $fieldName) {
+                                ... on ProjectV2ItemFieldNumberValue {
+                                    number
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }`, { nodeId, fieldName: consts_1.ESTIMATE_FIELD_NAME });
+    const projectItems = response.node?.projectItems?.nodes ?? [];
+    for (const item of projectItems) {
+        if (item.fieldValueByName !== null && 'number' in item.fieldValueByName) {
+            return item.fieldValueByName.number;
+        }
+    }
+    return undefined;
+}
+exports.getGitHubProjectsEstimate = getGitHubProjectsEstimate;
+/**
  * Makes sure that:
  * - PR either has issue or epic linked or has `adhoc` label
  * - either PR or linked issue has estimate
  */
-async function ensureCorrectLinkingAndEstimates(pullRequest) {
+async function ensureCorrectLinkingAndEstimates(pullRequest, octokit) {
     const pullRequestGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_PR_DETAILS_QUERY, {
         repositoryGhId: pullRequest.head.repo?.id,
         issueNumber: pullRequest.number,
@@ -297,23 +372,41 @@ async function ensureCorrectLinkingAndEstimates(pullRequest) {
     const pullRequestEstimate = pullRequestGraphqlResponse.data.data.issueByInfo.estimate?.value;
     const linkedIssue = getLinkedIssue(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
     const linkedEpics = getLinkedEpics(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
+    const githubLinkedIssues = await getGitHubLinkedIssues(octokit, pullRequest);
+    const pullRequestGithubEstimate = await getGitHubProjectsEstimate(octokit, pullRequest.node_id);
     if (!linkedIssue
+        && githubLinkedIssues.length === 0
         && linkedEpics.length === 0
         && !pullRequest.labels.some(({ name }) => name === 'adhoc'))
         await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!');
-    if (!linkedIssue && !pullRequestEstimate) {
-        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request in Zenhub!');
+    // Prefer ZenHub-linked issue; fall back to first GitHub-native linked issue for estimate lookup.
+    const effectiveIssue = linkedIssue
+        ? { repoGhId: linkedIssue.repo.gh_id, number: linkedIssue.number, repoName: linkedIssue.repo.name }
+        : githubLinkedIssues[0];
+    const hasAnyPrEstimate = !!(pullRequestEstimate || pullRequestGithubEstimate !== undefined);
+    if (!effectiveIssue && !hasAnyPrEstimate) {
+        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request in ZenHub or GitHub Projects!');
     }
-    if (!linkedIssue)
+    if (!effectiveIssue)
         return;
     const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
-        repositoryGhId: linkedIssue.repo.gh_id,
-        issueNumber: linkedIssue.number,
+        repositoryGhId: effectiveIssue.repoGhId,
+        issueNumber: effectiveIssue.number,
         workspaceId: consts_1.ZENHUB_WORKSPACE_ID,
     });
-    const issueEstimate = issueGraphqlResponse.data.data.issueByInfo.estimate?.value;
-    if (!pullRequestEstimate && !issueEstimate)
-        await fail(pullRequest, 'None of the pull request and linked issue has estimate');
+    const issueZenhubEstimate = issueGraphqlResponse.data.data.issueByInfo?.estimate?.value;
+    // For GitHub-native linked issues nodeId comes from closingIssuesReferences;
+    // for ZenHub-linked issues we fetch it via the REST API.
+    const issueNodeId = effectiveIssue.nodeId
+        ?? (await octokit.rest.issues.get({
+            owner: consts_1.ORGANIZATION,
+            repo: effectiveIssue.repoName,
+            issue_number: effectiveIssue.number,
+        })).data.node_id;
+    const issueGithubEstimate = await getGitHubProjectsEstimate(octokit, issueNodeId);
+    if (!hasAnyPrEstimate && issueZenhubEstimate === undefined && issueGithubEstimate === undefined) {
+        await fail(pullRequest, 'None of the pull request and linked issue has an estimate set in ZenHub or GitHub Projects');
+    }
 }
 exports.ensureCorrectLinkingAndEstimates = ensureCorrectLinkingAndEstimates;
 /**
@@ -674,8 +767,8 @@ async function run() {
         }
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
-        await (0, helpers_1.retry)(async () => (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest), consts_1.LINKING_CHECK_RETRIES, consts_1.LINKING_CHECK_DELAY_MILLIS);
-        core.info('Pull request is correctly linked to ZenHub issue, epic, or is adhoc and has an estimate.');
+        await (0, helpers_1.retry)(async () => (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit), consts_1.LINKING_CHECK_RETRIES, consts_1.LINKING_CHECK_DELAY_MILLIS);
+        core.info('Pull request is correctly linked to a ZenHub or GitHub issue, or is adhoc, and has an estimate.');
         core.info('All checks passed!');
     }
     catch (error) {
