@@ -10,6 +10,7 @@ import {
     TEAM_NAME_TO_LABEL,
     TEAM_TO_PROJECT_NUMBER,
     SPRINT_FIELD_NAME,
+    ESTIMATE_FIELD_NAME,
     ZENHUB_WORKSPACE_ID,
     ZENHUB_WORKSPACE_NAME,
 } from './consts';
@@ -36,6 +37,13 @@ type ZenhubIssue = {
 type ZenhubIssueWithRepo = ZenhubIssue & {
     repo: ZenhubRepo,
 }
+
+type GitHubLinkedIssue = {
+    nodeId: string;
+    number: number;
+    repoName: string;
+    repoGhId: number;
+};
 
 export type ZenhubTimelineItem = {
     id: string,
@@ -281,11 +289,115 @@ export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): P
 }
 
 /**
+ * Fetches GitHub-native closing issue references for a PR (covers "Closes #N" keywords
+ * and issues linked via the sidebar Development section).
+ */
+export async function getGitHubLinkedIssues(
+    octokit: OctokitType,
+    pullRequest: PullRequest,
+): Promise<GitHubLinkedIssue[]> {
+    const response = await octokit.graphql<{
+        repository: {
+            pullRequest: {
+                closingIssuesReferences: {
+                    nodes: Array<{
+                        id: string;
+                        number: number;
+                        repository: { name: string; databaseId: number };
+                    }>;
+                };
+            };
+        };
+    }>(
+        `query getClosingIssues($owner: String!, $repo: String!, $prNumber: Int!) {
+            repository(owner: $owner, name: $repo) {
+                pullRequest(number: $prNumber) {
+                    closingIssuesReferences(first: 25) {
+                        nodes {
+                            id
+                            number
+                            repository {
+                                name
+                                databaseId
+                            }
+                        }
+                    }
+                }
+            }
+        }`,
+        {
+            owner: ORGANIZATION,
+            repo: pullRequest.base.repo.name,
+            prNumber: pullRequest.number,
+        },
+    );
+
+    return response.repository.pullRequest.closingIssuesReferences.nodes.map((node) => ({
+        nodeId: node.id,
+        number: node.number,
+        repoName: node.repository.name,
+        repoGhId: node.repository.databaseId,
+    }));
+}
+
+/**
+ * Checks if a PR or Issue has an estimate set in any GitHub Project board.
+ * Returns the numeric estimate value, or undefined if not found.
+ */
+export async function getGitHubProjectsEstimate(octokit: OctokitType, nodeId: string): Promise<number | undefined> {
+    const response = await octokit.graphql<{
+        node: {
+            projectItems?: {
+                nodes: Array<{
+                    fieldValueByName: { number: number } | null;
+                }>;
+            };
+        };
+    }>(
+        `query getProjectsEstimate($nodeId: ID!, $fieldName: String!) {
+            node(id: $nodeId) {
+                ... on PullRequest {
+                    projectItems(first: 10) {
+                        nodes {
+                            fieldValueByName(name: $fieldName) {
+                                ... on ProjectV2ItemFieldNumberValue {
+                                    number
+                                }
+                            }
+                        }
+                    }
+                }
+                ... on Issue {
+                    projectItems(first: 10) {
+                        nodes {
+                            fieldValueByName(name: $fieldName) {
+                                ... on ProjectV2ItemFieldNumberValue {
+                                    number
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }`,
+        { nodeId, fieldName: ESTIMATE_FIELD_NAME },
+    );
+
+    const projectItems = response.node?.projectItems?.nodes ?? [];
+    for (const item of projectItems) {
+        if (item.fieldValueByName !== null && 'number' in item.fieldValueByName) {
+            return item.fieldValueByName.number;
+        }
+    }
+    return undefined;
+}
+
+/**
  * Makes sure that:
  * - PR either has issue or epic linked or has `adhoc` label
  * - either PR or linked issue has estimate
  */
-export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest): Promise<void> {
+export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest, octokit: OctokitType): Promise<void> {
     const pullRequestGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_PR_DETAILS_QUERY, {
         repositoryGhId: pullRequest.head.repo?.id,
         issueNumber: pullRequest.number,
@@ -295,26 +407,49 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest)
     const pullRequestEstimate = pullRequestGraphqlResponse.data.data.issueByInfo.estimate?.value;
     const linkedIssue = getLinkedIssue(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
     const linkedEpics = getLinkedEpics(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
+    const githubLinkedIssues = await getGitHubLinkedIssues(octokit, pullRequest);
+    const pullRequestGithubEstimate = await getGitHubProjectsEstimate(octokit, pullRequest.node_id);
 
     if (
         !linkedIssue
+        && githubLinkedIssues.length === 0
         && linkedEpics.length === 0
         && !pullRequest.labels.some(({ name }) => name === 'adhoc')
     ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!');
 
-    if (!linkedIssue && !pullRequestEstimate) {
-        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request in Zenhub!');
+    // Prefer ZenHub-linked issue; fall back to first GitHub-native linked issue for estimate lookup.
+    const effectiveIssue: { nodeId?: string; repoGhId: number; number: number; repoName: string } | undefined = linkedIssue
+        ? { repoGhId: linkedIssue.repo.gh_id, number: linkedIssue.number, repoName: linkedIssue.repo.name }
+        : githubLinkedIssues[0];
+
+    const hasAnyPrEstimate = !!(pullRequestEstimate || pullRequestGithubEstimate !== undefined);
+
+    if (!effectiveIssue && !hasAnyPrEstimate) {
+        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request in ZenHub or GitHub Projects!');
     }
-    if (!linkedIssue) return;
+    if (!effectiveIssue) return;
 
     const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
-        repositoryGhId: linkedIssue.repo.gh_id,
-        issueNumber: linkedIssue.number,
+        repositoryGhId: effectiveIssue.repoGhId,
+        issueNumber: effectiveIssue.number,
         workspaceId: ZENHUB_WORKSPACE_ID,
     });
-    const issueEstimate = issueGraphqlResponse.data.data.issueByInfo.estimate?.value;
+    const issueZenhubEstimate = issueGraphqlResponse.data.data.issueByInfo?.estimate?.value;
 
-    if (!pullRequestEstimate && !issueEstimate) await fail(pullRequest, 'None of the pull request and linked issue has estimate');
+    // For GitHub-native linked issues nodeId comes from closingIssuesReferences;
+    // for ZenHub-linked issues we fetch it via the REST API.
+    const issueNodeId = effectiveIssue.nodeId
+        ?? (await octokit.rest.issues.get({
+            owner: ORGANIZATION,
+            repo: effectiveIssue.repoName,
+            issue_number: effectiveIssue.number,
+        })).data.node_id;
+
+    const issueGithubEstimate = await getGitHubProjectsEstimate(octokit, issueNodeId);
+
+    if (!hasAnyPrEstimate && issueZenhubEstimate === undefined && issueGithubEstimate === undefined) {
+        await fail(pullRequest, 'None of the pull request and linked issue has an estimate set in ZenHub or GitHub Projects');
+    }
 }
 
 /**
@@ -462,8 +597,7 @@ async function findCurrentSprintIteration(
 
     const fields = response.node.fields.nodes;
     const sprintField = fields.find(
-        (field): field is GitHubProjectIterationField =>
-            'configuration' in field && field.name === SPRINT_FIELD_NAME,
+        (field): field is GitHubProjectIterationField => 'configuration' in field && field.name === SPRINT_FIELD_NAME,
     );
     if (!sprintField) throw new Error(`No iteration field named "${SPRINT_FIELD_NAME}" found in project`);
 

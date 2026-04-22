@@ -168,11 +168,11 @@ async function run(): Promise<void> {
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
         await retry(
-            async () => ensureCorrectLinkingAndEstimates(pullRequest),
+            async () => ensureCorrectLinkingAndEstimates(pullRequest, repoOctokit),
             LINKING_CHECK_RETRIES,
             LINKING_CHECK_DELAY_MILLIS,
         );
-        core.info('Pull request is correctly linked to ZenHub issue, epic, or is adhoc and has an estimate.');
+        core.info('Pull request is correctly linked to a ZenHub or GitHub issue, or is adhoc, and has an estimate.');
         core.info('All checks passed!');
     } catch (error) {
         if (error instanceof Error) {
