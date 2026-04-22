@@ -395,15 +395,12 @@ async function ensureCorrectLinkingAndEstimates(pullRequest, octokit) {
         workspaceId: consts_1.ZENHUB_WORKSPACE_ID,
     });
     const issueZenhubEstimate = issueGraphqlResponse.data.data.issueByInfo?.estimate?.value;
-    // For GitHub-native linked issues nodeId comes from closingIssuesReferences;
-    // for ZenHub-linked issues we fetch it via the REST API.
-    const issueNodeId = effectiveIssue.nodeId
-        ?? (await octokit.rest.issues.get({
-            owner: consts_1.ORGANIZATION,
-            repo: effectiveIssue.repoName,
-            issue_number: effectiveIssue.number,
-        })).data.node_id;
-    const issueGithubEstimate = await getGitHubProjectsEstimate(octokit, issueNodeId);
+    // GitHub Projects estimate is only checked for GitHub-native linked issues, where the
+    // node_id is already available from closingIssuesReferences without any extra API call.
+    // For ZenHub-linked issues the ZenHub estimate check above is sufficient.
+    const issueGithubEstimate = effectiveIssue.nodeId
+        ? await getGitHubProjectsEstimate(octokit, effectiveIssue.nodeId)
+        : undefined;
     if (!hasAnyPrEstimate && issueZenhubEstimate === undefined && issueGithubEstimate === undefined) {
         await fail(pullRequest, 'None of the pull request and linked issue has an estimate set in ZenHub or GitHub Projects');
     }
