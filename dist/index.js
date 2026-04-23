@@ -313,7 +313,9 @@ async function getGitHubLinkedIssues(octokit, pullRequest) {
         repo: pullRequest.base.repo.name,
         prNumber: pullRequest.number,
     });
-    const sameRepoIssues = response.repository.pullRequest.closingIssuesReferences.nodes.map((node) => ({
+    const sameRepoIssues = response.repository.pullRequest.closingIssuesReferences.nodes
+        .filter((node) => node !== null)
+        .map((node) => ({
         nodeId: node.id,
         number: node.number,
         repoName: node.repository.name,

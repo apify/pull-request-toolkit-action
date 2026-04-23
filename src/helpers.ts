@@ -307,7 +307,7 @@ export async function getGitHubLinkedIssues(
                         id: string;
                         number: number;
                         repository: { name: string; databaseId: number };
-                    }>;
+                    } | null>;
                 };
             };
         };
@@ -335,12 +335,14 @@ export async function getGitHubLinkedIssues(
         },
     );
 
-    const sameRepoIssues: GitHubLinkedIssue[] = response.repository.pullRequest.closingIssuesReferences.nodes.map((node) => ({
-        nodeId: node.id,
-        number: node.number,
-        repoName: node.repository.name,
-        repoGhId: node.repository.databaseId,
-    }));
+    const sameRepoIssues: GitHubLinkedIssue[] = response.repository.pullRequest.closingIssuesReferences.nodes
+        .filter((node): node is NonNullable<typeof node> => node !== null)
+        .map((node) => ({
+            nodeId: node.id,
+            number: node.number,
+            repoName: node.repository.name,
+            repoGhId: node.repository.databaseId,
+        }));
 
     const crossRepoRefs = extractCrossRepoClosingReferences(pullRequest.body);
     const crossRepoIssues: GitHubLinkedIssue[] = [];
