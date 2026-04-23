@@ -289,8 +289,11 @@ export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): P
 }
 
 /**
- * Fetches GitHub-native closing issue references for a PR (covers "Closes #N" keywords
- * and issues linked via the sidebar Development section).
+ * Fetches GitHub-native closing issue references for a PR.
+ * Covers two cases:
+ * - Same-repo issues: via GitHub's closingIssuesReferences GraphQL field
+ * - Cross-repo issues: parsed from the PR body (e.g. "Closes owner/repo#N"), then resolved
+ *   via the GitHub API using the org-scoped token which has read access across the org.
  */
 export async function getGitHubLinkedIssues(
     octokit: OctokitType,
@@ -332,12 +335,60 @@ export async function getGitHubLinkedIssues(
         },
     );
 
-    return response.repository.pullRequest.closingIssuesReferences.nodes.map((node) => ({
+    const sameRepoIssues: GitHubLinkedIssue[] = response.repository.pullRequest.closingIssuesReferences.nodes.map((node) => ({
         nodeId: node.id,
         number: node.number,
         repoName: node.repository.name,
         repoGhId: node.repository.databaseId,
     }));
+
+    const crossRepoRefs = extractCrossRepoClosingReferences(pullRequest.body);
+    const crossRepoIssues: GitHubLinkedIssue[] = [];
+    for (const ref of crossRepoRefs) {
+        try {
+            const issueResponse = await octokit.graphql<{
+                repository: { issue: { id: string; repository: { name: string; databaseId: number } } };
+            }>(
+                `query getCrossRepoIssue($owner: String!, $repo: String!, $number: Int!) {
+                    repository(owner: $owner, name: $repo) {
+                        issue(number: $number) {
+                            id
+                            repository {
+                                name
+                                databaseId
+                            }
+                        }
+                    }
+                }`,
+                { owner: ref.owner, repo: ref.repo, number: ref.number },
+            );
+            crossRepoIssues.push({
+                nodeId: issueResponse.repository.issue.id,
+                number: ref.number,
+                repoName: issueResponse.repository.issue.repository.name,
+                repoGhId: issueResponse.repository.issue.repository.databaseId,
+            });
+        } catch {
+            core.warning(`Could not fetch cross-repo issue ${ref.owner}/${ref.repo}#${ref.number}, skipping.`);
+        }
+    }
+
+    return [...sameRepoIssues, ...crossRepoIssues];
+}
+
+/**
+ * Extracts cross-repository closing references from a PR body
+ * (e.g. "Closes owner/repo#123" → [{ owner: 'owner', repo: 'repo', number: 123 }]).
+ */
+function extractCrossRepoClosingReferences(body: string | null): Array<{ owner: string; repo: string; number: number }> {
+    if (!body) return [];
+    const regex = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)#(\d+)/gi;
+    const results: Array<{ owner: string; repo: string; number: number }> = [];
+    let match;
+    while ((match = regex.exec(body)) !== null) {
+        results.push({ owner: match[1], repo: match[2], number: parseInt(match[3], 10) });
+    }
+    return results;
 }
 
 /**
@@ -390,6 +441,16 @@ export async function getGitHubProjectsEstimate(octokit: OctokitType, nodeId: st
         }
     }
     return undefined;
+}
+
+/**
+ * Returns true if the PR body contains a cross-repository closing reference
+ * (e.g. "Closes owner/repo#123"). GitHub's closingIssuesReferences API only covers
+ * same-repo issues, so cross-repo ones must be detected by parsing the body directly.
+ */
+export function hasCrossRepoClosingReference(body: string | null): boolean {
+    if (!body) return false;
+    return /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+#\d+/i.test(body);
 }
 
 /**

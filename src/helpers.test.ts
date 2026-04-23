@@ -14,6 +14,7 @@ import {
     assignPrToProjectSprint,
     getGitHubLinkedIssues,
     getGitHubProjectsEstimate,
+    hasCrossRepoClosingReference,
 } from './helpers';
 
 jest.mock('./consts', () => ({
@@ -314,6 +315,23 @@ describe('assignPrToProjectSprint', () => {
         await expect(assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Core Services')).rejects.toThrow(
             'No active sprint found in project field "Sprint"',
         );
+    });
+});
+
+describe('hasCrossRepoClosingReference', () => {
+    test('detects cross-repo closing references', () => {
+        expect(hasCrossRepoClosingReference('Closes apify/apify-web#123')).toBe(true);
+        expect(hasCrossRepoClosingReference('fixes apify/some-repo#1')).toBe(true);
+        expect(hasCrossRepoClosingReference('Resolves owner/repo#999\nsome other text')).toBe(true);
+        expect(hasCrossRepoClosingReference('fix apify/repo#42')).toBe(true);
+    });
+
+    test('does not match same-repo or unrelated references', () => {
+        expect(hasCrossRepoClosingReference('Closes #123')).toBe(false);
+        expect(hasCrossRepoClosingReference('See apify/apify-web#123 for context')).toBe(false);
+        expect(hasCrossRepoClosingReference(null)).toBe(false);
+        expect(hasCrossRepoClosingReference('')).toBe(false);
+        expect(hasCrossRepoClosingReference('No references here')).toBe(false);
     });
 });
 
