@@ -322,6 +322,7 @@ async function getGitHubLinkedIssues(octokit, pullRequest) {
         repoGhId: node.repository.databaseId,
     }));
     const crossRepoRefs = extractCrossRepoClosingReferences(pullRequest.body);
+    core.info(`Found ${crossRepoRefs.length} cross-repo closing reference(s) in PR body: ${JSON.stringify(crossRepoRefs)}`);
     const crossRepoIssues = [];
     for (const ref of crossRepoRefs) {
         try {
