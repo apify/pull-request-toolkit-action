@@ -319,11 +319,16 @@ describe('assignPrToProjectSprint', () => {
 });
 
 describe('hasCrossRepoClosingReference', () => {
-    test('detects cross-repo closing references', () => {
+    test('detects cross-repo closing references in short format', () => {
         expect(hasCrossRepoClosingReference('Closes apify/apify-web#123')).toBe(true);
         expect(hasCrossRepoClosingReference('fixes apify/some-repo#1')).toBe(true);
         expect(hasCrossRepoClosingReference('Resolves owner/repo#999\nsome other text')).toBe(true);
         expect(hasCrossRepoClosingReference('fix apify/repo#42')).toBe(true);
+    });
+
+    test('detects cross-repo closing references in full URL format', () => {
+        expect(hasCrossRepoClosingReference('Closes https://github.com/apify/apify-web/issues/5965')).toBe(true);
+        expect(hasCrossRepoClosingReference('fixes https://github.com/apify/apify-web/issues/1\r\nsome text')).toBe(true);
     });
 
     test('does not match same-repo or unrelated references', () => {

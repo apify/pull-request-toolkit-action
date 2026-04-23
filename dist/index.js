@@ -364,12 +364,21 @@ exports.getGitHubLinkedIssues = getGitHubLinkedIssues;
 function extractCrossRepoClosingReferences(body) {
     if (!body)
         return [];
-    const regex = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)#(\d+)/gi;
     const results = [];
-    let match = regex.exec(body);
+    const keyword = '(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s+';
+    // Short format: "Closes owner/repo#N"
+    const shortRegex = new RegExp(`${keyword}([a-zA-Z0-9._-]+)\\/([a-zA-Z0-9._-]+)#(\\d+)`, 'gi');
+    let match = shortRegex.exec(body);
     while (match !== null) {
         results.push({ owner: match[1], repo: match[2], number: parseInt(match[3], 10) });
-        match = regex.exec(body);
+        match = shortRegex.exec(body);
+    }
+    // Full URL format: "Closes https://github.com/owner/repo/issues/N"
+    const urlRegex = new RegExp(`${keyword}https:\\/\\/github\\.com\\/([a-zA-Z0-9._-]+)\\/([a-zA-Z0-9._-]+)\\/issues\\/(\\d+)`, 'gi');
+    match = urlRegex.exec(body);
+    while (match !== null) {
+        results.push({ owner: match[1], repo: match[2], number: parseInt(match[3], 10) });
+        match = urlRegex.exec(body);
     }
     return results;
 }
@@ -414,14 +423,19 @@ async function getGitHubProjectsEstimate(octokit, nodeId) {
 }
 exports.getGitHubProjectsEstimate = getGitHubProjectsEstimate;
 /**
- * Returns true if the PR body contains a cross-repository closing reference
- * (e.g. "Closes owner/repo#123"). GitHub's closingIssuesReferences API only covers
- * same-repo issues, so cross-repo ones must be detected by parsing the body directly.
+ * Returns true if the PR body contains a cross-repository closing reference,
+ * either in short format ("Closes owner/repo#123") or full URL format
+ * ("Closes https://github.com/owner/repo/issues/123").
+ * GitHub's closingIssuesReferences API only covers same-repo issues, so cross-repo
+ * ones must be detected by parsing the body directly.
  */
 function hasCrossRepoClosingReference(body) {
     if (!body)
         return false;
-    return /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+#\d+/i.test(body);
+    const keyword = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+/i;
+    const shortFormat = /[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+#\d+/;
+    const urlFormat = /https:\/\/github\.com\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+\/issues\/\d+/;
+    return new RegExp(`${keyword.source}(?:${shortFormat.source}|${urlFormat.source})`, 'i').test(body);
 }
 exports.hasCrossRepoClosingReference = hasCrossRepoClosingReference;
 /**
