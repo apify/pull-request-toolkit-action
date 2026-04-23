@@ -344,6 +344,7 @@ export async function getGitHubLinkedIssues(
             repoGhId: node.repository.databaseId,
         }));
 
+    core.info(`PR body (first 500 chars): ${JSON.stringify(pullRequest.body?.slice(0, 500))}`);
     const crossRepoRefs = extractCrossRepoClosingReferences(pullRequest.body);
     core.info(`Found ${crossRepoRefs.length} cross-repo closing reference(s) in PR body: ${JSON.stringify(crossRepoRefs)}`);
     const crossRepoIssues: GitHubLinkedIssue[] = [];
