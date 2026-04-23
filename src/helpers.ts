@@ -384,9 +384,10 @@ function extractCrossRepoClosingReferences(body: string | null): Array<{ owner: 
     if (!body) return [];
     const regex = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)#(\d+)/gi;
     const results: Array<{ owner: string; repo: string; number: number }> = [];
-    let match;
-    while ((match = regex.exec(body)) !== null) {
+    let match: RegExpExecArray | null = regex.exec(body);
+    while (match !== null) {
         results.push({ owner: match[1], repo: match[2], number: parseInt(match[3], 10) });
+        match = regex.exec(body);
     }
     return results;
 }

@@ -69,7 +69,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.retry = exports.assignPrToProjectSprint = exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.getGitHubProjectsEstimate = exports.getGitHubLinkedIssues = exports.isRepoIncludedInZenHubWorkspace = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
+exports.retry = exports.assignPrToProjectSprint = exports.isPullRequestTested = exports.isTestFilePath = exports.getLinkedEpics = exports.getLinkedIssue = exports.fail = exports.ensureCorrectLinkingAndEstimates = exports.hasCrossRepoClosingReference = exports.getGitHubProjectsEstimate = exports.getGitHubLinkedIssues = exports.isRepoIncludedInZenHubWorkspace = exports.addTeamLabel = exports.getTeamLabelName = exports.fillCurrentMilestone = exports.assignPrCreator = exports.findCurrentTeamMilestone = exports.findUsersTeamName = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const axios_1 = __importDefault(__nccwpck_require__(8757));
 const consts_1 = __nccwpck_require__(4831);
@@ -286,8 +286,11 @@ async function isRepoIncludedInZenHubWorkspace(repositoryName) {
 }
 exports.isRepoIncludedInZenHubWorkspace = isRepoIncludedInZenHubWorkspace;
 /**
- * Fetches GitHub-native closing issue references for a PR (covers "Closes #N" keywords
- * and issues linked via the sidebar Development section).
+ * Fetches GitHub-native closing issue references for a PR.
+ * Covers two cases:
+ * - Same-repo issues: via GitHub's closingIssuesReferences GraphQL field
+ * - Cross-repo issues: parsed from the PR body (e.g. "Closes owner/repo#N"), then resolved
+ *   via the GitHub API using the org-scoped token which has read access across the org.
  */
 async function getGitHubLinkedIssues(octokit, pullRequest) {
     const response = await octokit.graphql(`query getClosingIssues($owner: String!, $repo: String!, $prNumber: Int!) {
@@ -310,14 +313,57 @@ async function getGitHubLinkedIssues(octokit, pullRequest) {
         repo: pullRequest.base.repo.name,
         prNumber: pullRequest.number,
     });
-    return response.repository.pullRequest.closingIssuesReferences.nodes.map((node) => ({
+    const sameRepoIssues = response.repository.pullRequest.closingIssuesReferences.nodes.map((node) => ({
         nodeId: node.id,
         number: node.number,
         repoName: node.repository.name,
         repoGhId: node.repository.databaseId,
     }));
+    const crossRepoRefs = extractCrossRepoClosingReferences(pullRequest.body);
+    const crossRepoIssues = [];
+    for (const ref of crossRepoRefs) {
+        try {
+            const issueResponse = await octokit.graphql(`query getCrossRepoIssue($owner: String!, $repo: String!, $number: Int!) {
+                    repository(owner: $owner, name: $repo) {
+                        issue(number: $number) {
+                            id
+                            repository {
+                                name
+                                databaseId
+                            }
+                        }
+                    }
+                }`, { owner: ref.owner, repo: ref.repo, number: ref.number });
+            crossRepoIssues.push({
+                nodeId: issueResponse.repository.issue.id,
+                number: ref.number,
+                repoName: issueResponse.repository.issue.repository.name,
+                repoGhId: issueResponse.repository.issue.repository.databaseId,
+            });
+        }
+        catch {
+            core.warning(`Could not fetch cross-repo issue ${ref.owner}/${ref.repo}#${ref.number}, skipping.`);
+        }
+    }
+    return [...sameRepoIssues, ...crossRepoIssues];
 }
 exports.getGitHubLinkedIssues = getGitHubLinkedIssues;
+/**
+ * Extracts cross-repository closing references from a PR body
+ * (e.g. "Closes owner/repo#123" → [{ owner: 'owner', repo: 'repo', number: 123 }]).
+ */
+function extractCrossRepoClosingReferences(body) {
+    if (!body)
+        return [];
+    const regex = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)#(\d+)/gi;
+    const results = [];
+    let match = regex.exec(body);
+    while (match !== null) {
+        results.push({ owner: match[1], repo: match[2], number: parseInt(match[3], 10) });
+        match = regex.exec(body);
+    }
+    return results;
+}
 /**
  * Checks if a PR or Issue has an estimate set in any GitHub Project board.
  * Returns the numeric estimate value, or undefined if not found.
@@ -358,6 +404,17 @@ async function getGitHubProjectsEstimate(octokit, nodeId) {
     return undefined;
 }
 exports.getGitHubProjectsEstimate = getGitHubProjectsEstimate;
+/**
+ * Returns true if the PR body contains a cross-repository closing reference
+ * (e.g. "Closes owner/repo#123"). GitHub's closingIssuesReferences API only covers
+ * same-repo issues, so cross-repo ones must be detected by parsing the body directly.
+ */
+function hasCrossRepoClosingReference(body) {
+    if (!body)
+        return false;
+    return /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+#\d+/i.test(body);
+}
+exports.hasCrossRepoClosingReference = hasCrossRepoClosingReference;
 /**
  * Makes sure that:
  * - PR either has issue or epic linked or has `adhoc` label
@@ -764,7 +821,7 @@ async function run() {
         }
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
-        await (0, helpers_1.retry)(async () => (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, repoOctokit), consts_1.LINKING_CHECK_RETRIES, consts_1.LINKING_CHECK_DELAY_MILLIS);
+        await (0, helpers_1.retry)(async () => (0, helpers_1.ensureCorrectLinkingAndEstimates)(pullRequest, orgOctokit), consts_1.LINKING_CHECK_RETRIES, consts_1.LINKING_CHECK_DELAY_MILLIS);
         core.info('Pull request is correctly linked to a ZenHub or GitHub issue, or is adhoc, and has an estimate.');
         core.info('All checks passed!');
     }
