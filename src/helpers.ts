@@ -347,7 +347,7 @@ export async function getGitHubLinkedIssues(
     for (const ref of crossRepoRefs) {
         try {
             const issueResponse = await octokit.graphql<{
-                repository: { issue: { id: string; repository: { name: string; databaseId: number } } };
+                repository: { issue: { id: string; repository: { name: string; databaseId: number } } | null };
             }>(
                 `query getCrossRepoIssue($owner: String!, $repo: String!, $number: Int!) {
                     repository(owner: $owner, name: $repo) {
@@ -362,11 +362,16 @@ export async function getGitHubLinkedIssues(
                 }`,
                 { owner: ref.owner, repo: ref.repo, number: ref.number },
             );
+            const issue = issueResponse.repository.issue;
+            if (!issue) {
+                core.warning(`Cross-repo reference ${ref.owner}/${ref.repo}#${ref.number} does not point to an issue, skipping.`);
+                continue;
+            }
             crossRepoIssues.push({
-                nodeId: issueResponse.repository.issue.id,
+                nodeId: issue.id,
                 number: ref.number,
-                repoName: issueResponse.repository.issue.repository.name,
-                repoGhId: issueResponse.repository.issue.repository.databaseId,
+                repoName: issue.repository.name,
+                repoGhId: issue.repository.databaseId,
             });
         } catch {
             core.warning(`Could not fetch cross-repo issue ${ref.owner}/${ref.repo}#${ref.number}, skipping.`);

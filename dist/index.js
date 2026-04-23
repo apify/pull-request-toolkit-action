@@ -334,11 +334,16 @@ async function getGitHubLinkedIssues(octokit, pullRequest) {
                         }
                     }
                 }`, { owner: ref.owner, repo: ref.repo, number: ref.number });
+            const issue = issueResponse.repository.issue;
+            if (!issue) {
+                core.warning(`Cross-repo reference ${ref.owner}/${ref.repo}#${ref.number} does not point to an issue, skipping.`);
+                continue;
+            }
             crossRepoIssues.push({
-                nodeId: issueResponse.repository.issue.id,
+                nodeId: issue.id,
                 number: ref.number,
-                repoName: issueResponse.repository.issue.repository.name,
-                repoGhId: issueResponse.repository.issue.repository.databaseId,
+                repoName: issue.repository.name,
+                repoGhId: issue.repository.databaseId,
             });
         }
         catch {
