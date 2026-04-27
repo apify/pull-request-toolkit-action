@@ -321,9 +321,7 @@ async function getGitHubLinkedIssues(octokit, pullRequest) {
         repoName: node.repository.name,
         repoGhId: node.repository.databaseId,
     }));
-    core.info(`PR body (first 500 chars): ${JSON.stringify(pullRequest.body?.slice(0, 500))}`);
     const crossRepoRefs = extractCrossRepoClosingReferences(pullRequest.body);
-    core.info(`Found ${crossRepoRefs.length} cross-repo closing reference(s) in PR body: ${JSON.stringify(crossRepoRefs)}`);
     const crossRepoIssues = [];
     for (const ref of crossRepoRefs) {
         try {
@@ -454,10 +452,8 @@ async function ensureCorrectLinkingAndEstimates(pullRequest, octokit) {
     const linkedEpics = getLinkedEpics(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
     const githubLinkedIssues = await getGitHubLinkedIssues(octokit, pullRequest);
     const pullRequestGithubEstimate = await getGitHubProjectsEstimate(octokit, pullRequest.node_id);
-    const crossRepoReference = hasCrossRepoClosingReference(pullRequest.body);
     if (!linkedIssue
         && githubLinkedIssues.length === 0
-        && !crossRepoReference
         && linkedEpics.length === 0
         && !pullRequest.labels.some(({ name }) => name === 'adhoc'))
         await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!');
