@@ -151,7 +151,7 @@ async function run(): Promise<void> {
         // 5. Adds PR to team's GitHub Project board and assigns to the current Sprint (if team is migrated to GitHub Projects).
         if (TEAM_TO_PROJECT_NUMBER[teamName] !== undefined) {
             try {
-                const sprintTitle = await assignPrToProjectSprint(orgOctokit, pullRequest, teamName);
+                const sprintTitle = await assignPrToProjectSprint(orgOctokit, repoOctokit, pullRequest, teamName);
                 core.info(`PR added to GitHub Project board and assigned to sprint "${sprintTitle}".`);
             } catch (err) {
                 core.warning(`Failed to assign PR to project sprint: ${err instanceof Error ? err.message : err}`);
@@ -163,7 +163,7 @@ async function run(): Promise<void> {
         if (SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
             core.info(`Team ${teamName} is listed in SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);
             return;
-        }
+
 
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.

@@ -199,7 +199,8 @@ describe('assignPrToProjectSprint', () => {
 
     test('throws when team has no project configured', async () => {
         const mockOctokit = { graphql: jest.fn() } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-        await expect(assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Unknown Team')).rejects.toThrow(
+        const mockRepoOctokit = { graphql: jest.fn() } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+        await expect(assignPrToProjectSprint(mockOctokit, mockRepoOctokit, MOCK_PR, 'Unknown Team')).rejects.toThrow(
             'No GitHub Project configured for team "Unknown Team"',
         );
         expect(mockOctokit.graphql).not.toHaveBeenCalled();
@@ -237,25 +238,30 @@ describe('assignPrToProjectSprint', () => {
                         },
                     },
                 })
-                // 3rd call: addPrToProject
-                .mockResolvedValueOnce({ addProjectV2ItemById: { item: { id: 'ITEM_ID' } } })
-                // 4th call: setProjectItemSprint
+                // 3rd call: setProjectItemSprint (addPrToProject is now on repoOctokit)
                 .mockResolvedValueOnce({}),
         } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-        const sprintTitle = await assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Core Services');
+        const mockRepoOctokit = {
+            graphql: jest.fn()
+                // addPrToProject call
+                .mockResolvedValueOnce({ addProjectV2ItemById: { item: { id: 'ITEM_ID' } } }),
+        } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        const sprintTitle = await assignPrToProjectSprint(mockOctokit, mockRepoOctokit, MOCK_PR, 'Core Services');
 
         expect(sprintTitle).toBe('Sprint 10');
-        expect(mockOctokit.graphql).toHaveBeenCalledTimes(4);
+        expect(mockOctokit.graphql).toHaveBeenCalledTimes(3);
+        expect(mockRepoOctokit.graphql).toHaveBeenCalledTimes(1);
 
-        // Verify addPrToProject was called with correct PR node ID
-        expect(mockOctokit.graphql).toHaveBeenNthCalledWith(3, expect.any(String), {
+        // Verify addPrToProject was called via repoOctokit with correct PR node ID
+        expect(mockRepoOctokit.graphql).toHaveBeenCalledWith(expect.any(String), {
             projectId: 'PROJECT_NODE_ID',
             contentId: 'PR_node_id_123',
         });
 
         // Verify setProjectItemSprint was called with resolved IDs
-        expect(mockOctokit.graphql).toHaveBeenNthCalledWith(4, expect.any(String), {
+        expect(mockOctokit.graphql).toHaveBeenNthCalledWith(3, expect.any(String), {
             projectId: 'PROJECT_NODE_ID',
             itemId: 'ITEM_ID',
             fieldId: 'FIELD_ID',
@@ -272,7 +278,8 @@ describe('assignPrToProjectSprint', () => {
                 }),
         } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-        await expect(assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Core Services')).rejects.toThrow(
+        const mockRepoOctokit = { graphql: jest.fn() } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+        await expect(assignPrToProjectSprint(mockOctokit, mockRepoOctokit, MOCK_PR, 'Core Services')).rejects.toThrow(
             'No iteration field named "Sprint" found in project',
         );
     });
@@ -308,7 +315,8 @@ describe('assignPrToProjectSprint', () => {
                 }),
         } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-        await expect(assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Core Services')).rejects.toThrow(
+        const mockRepoOctokit = { graphql: jest.fn() } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+        await expect(assignPrToProjectSprint(mockOctokit, mockRepoOctokit, MOCK_PR, 'Core Services')).rejects.toThrow(
             'No active sprint found in project field "Sprint"',
         );
     });
