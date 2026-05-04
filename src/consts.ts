@@ -32,3 +32,6 @@ export const TEAM_TO_PROJECT_NUMBER: Record<string, number> = {
 
 // The exact name of the iteration field in the GitHub Project board.
 export const SPRINT_FIELD_NAME = 'Sprint';
+
+// The exact name of the number field used for estimates in GitHub Project boards.
+export const ESTIMATE_FIELD_NAME = 'Estimate';

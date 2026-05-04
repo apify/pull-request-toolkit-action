@@ -12,12 +12,16 @@ import {
     isTestFilePath,
     retry,
     assignPrToProjectSprint,
+    getGitHubLinkedIssues,
+    getGitHubProjectsEstimate,
+    hasCrossRepoClosingReference,
 } from './helpers';
 
 jest.mock('./consts', () => ({
     ...jest.requireActual('./consts'),
     TEAM_TO_PROJECT_NUMBER: { 'Core Services': 42 },
     SPRINT_FIELD_NAME: 'Sprint',
+    ESTIMATE_FIELD_NAME: 'Estimate',
 }));
 
 type Milestone = components['schemas']['milestone'];
@@ -311,6 +315,103 @@ describe('assignPrToProjectSprint', () => {
         await expect(assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Core Services')).rejects.toThrow(
             'No active sprint found in project field "Sprint"',
         );
+    });
+});
+
+describe('hasCrossRepoClosingReference', () => {
+    test('detects cross-repo closing references in short format', () => {
+        expect(hasCrossRepoClosingReference('Closes apify/apify-web#123')).toBe(true);
+        expect(hasCrossRepoClosingReference('fixes apify/some-repo#1')).toBe(true);
+        expect(hasCrossRepoClosingReference('Resolves owner/repo#999\nsome other text')).toBe(true);
+        expect(hasCrossRepoClosingReference('fix apify/repo#42')).toBe(true);
+    });
+
+    test('detects cross-repo closing references in full URL format', () => {
+        expect(hasCrossRepoClosingReference('Closes https://github.com/apify/apify-web/issues/5965')).toBe(true);
+        expect(hasCrossRepoClosingReference('fixes https://github.com/apify/apify-web/issues/1\r\nsome text')).toBe(true);
+    });
+
+    test('does not match same-repo or unrelated references', () => {
+        expect(hasCrossRepoClosingReference('Closes #123')).toBe(false);
+        expect(hasCrossRepoClosingReference('See apify/apify-web#123 for context')).toBe(false);
+        expect(hasCrossRepoClosingReference(null)).toBe(false);
+        expect(hasCrossRepoClosingReference('')).toBe(false);
+        expect(hasCrossRepoClosingReference('No references here')).toBe(false);
+    });
+});
+
+describe('getGitHubLinkedIssues', () => {
+    const MOCK_PR = { number: 42, base: { repo: { name: 'apify-core' } } } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    test('returns mapped issues from closingIssuesReferences', async () => {
+        const mockOctokit = {
+            graphql: jest.fn().mockResolvedValueOnce({
+                repository: {
+                    pullRequest: {
+                        closingIssuesReferences: {
+                            nodes: [{ id: 'I_node_1', number: 100, repository: { name: 'apify-core', databaseId: 12345 } }],
+                        },
+                    },
+                },
+            }),
+        } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        const result = await getGitHubLinkedIssues(mockOctokit, MOCK_PR);
+        expect(result).toEqual([{ nodeId: 'I_node_1', number: 100, repoName: 'apify-core', repoGhId: 12345 }]);
+    });
+
+    test('returns empty array when no issues are linked', async () => {
+        const mockOctokit = {
+            graphql: jest.fn().mockResolvedValueOnce({
+                repository: { pullRequest: { closingIssuesReferences: { nodes: [] } } },
+            }),
+        } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        const result = await getGitHubLinkedIssues(mockOctokit, MOCK_PR);
+        expect(result).toEqual([]);
+    });
+});
+
+describe('getGitHubProjectsEstimate', () => {
+    test('returns numeric estimate when field is set', async () => {
+        const mockOctokit = {
+            graphql: jest.fn().mockResolvedValueOnce({
+                node: {
+                    projectItems: {
+                        nodes: [{ fieldValueByName: { number: 5 } }],
+                    },
+                },
+            }),
+        } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        const result = await getGitHubProjectsEstimate(mockOctokit, 'PR_node_id_123');
+        expect(result).toBe(5);
+    });
+
+    test('returns undefined when field is null (not set)', async () => {
+        const mockOctokit = {
+            graphql: jest.fn().mockResolvedValueOnce({
+                node: {
+                    projectItems: {
+                        nodes: [{ fieldValueByName: null }],
+                    },
+                },
+            }),
+        } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        const result = await getGitHubProjectsEstimate(mockOctokit, 'PR_node_id_123');
+        expect(result).toBeUndefined();
+    });
+
+    test('returns undefined when item is not in any project', async () => {
+        const mockOctokit = {
+            graphql: jest.fn().mockResolvedValueOnce({
+                node: { projectItems: { nodes: [] } },
+            }),
+        } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        const result = await getGitHubProjectsEstimate(mockOctokit, 'PR_node_id_123');
+        expect(result).toBeUndefined();
     });
 });
 
