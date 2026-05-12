@@ -766,20 +766,24 @@ async function run() {
             return;
         }
         core.info(`User ${user} belongs to a ${teamName} team.`);
-        // Skip if the repository is not connected to the ZenHub workspace.
+        // ZenHub-dependent steps (milestone fill, linking/estimate check) are skipped when either the
+        // repository isn't in the ZenHub workspace or the team is listed in TEAMS_NOT_USING_ZENHUB.
+        // Non-ZenHub steps (creator, team label, tested label, GitHub Projects sprint assignment) still run.
         const belongsToZenhub = await (0, helpers_1.isRepoIncludedInZenHubWorkspace)(pullRequest.base.repo.name);
         if (!belongsToZenhub) {
-            core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`);
-            return;
+            core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping ZenHub-dependent checks.`);
         }
-        core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace.`);
-        // Skip if the team is listed in TEAMS_NOT_USING_ZENHUB.
+        else {
+            core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace.`);
+        }
         const isTeamUsingZenhub = !consts_1.TEAMS_NOT_USING_ZENHUB.includes(teamName);
         if (!isTeamUsingZenhub) {
-            core.info(`Team ${teamName} is listed in TEAMS_NOT_USING_ZENHUB. Skipping toolkit action.`);
-            return;
+            core.info(`Team ${teamName} is listed in TEAMS_NOT_USING_ZENHUB. Skipping ZenHub-dependent checks.`);
         }
-        core.info(`Team ${teamName} uses a ZenHub.`);
+        else {
+            core.info(`Team ${teamName} uses a ZenHub.`);
+        }
+        const runZenhubChecks = belongsToZenhub && isTeamUsingZenhub;
         // All these 4 actions below are idempotent, so they can be run on every PR update.
         // Also, these actions do not require any action from a PR author.
         // 1. Assigns PR creator if not already assigned.
@@ -792,7 +796,10 @@ async function run() {
             core.info('Creator already assigned.');
         }
         // 2. Assigns current milestone if not already assigned.
-        if (!pullRequestContext.milestone && !consts_1.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
+        if (!runZenhubChecks) {
+            core.info('Skipping milestone assignment (ZenHub-dependent).');
+        }
+        else if (!pullRequestContext.milestone && !consts_1.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
             const milestoneTitle = await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
             core.info(`Milestone successfully filled with ${milestoneTitle}.`);
         }
@@ -835,6 +842,11 @@ async function run() {
         }
         else {
             core.info(`Team ${teamName} is not using GitHub Projects. Skipping sprint assignment.`);
+        }
+        if (!runZenhubChecks) {
+            core.info('Skipping linking and estimate check (ZenHub-dependent).');
+            core.info('All checks passed!');
+            return;
         }
         if (consts_1.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
             core.info(`Team ${teamName} is listed in SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);
