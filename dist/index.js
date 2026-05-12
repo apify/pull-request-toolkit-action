@@ -611,10 +611,8 @@ async function findCurrentSprintIteration(octokit, projectId) {
  * Adds a pull request to a GitHub Project board.
  * Idempotent — returns the existing item ID if the PR is already in the project.
  */
-async function addPrToProject(octokit, repoOctokit, projectId, prNodeId) {
-    // Use repoOctokit here because the org token may lack read access to private repositories,
-    // causing GitHub's GraphQL API to fail resolving the PR node ID (contentId).
-    const response = await repoOctokit.graphql(`mutation addToProject($projectId: ID!, $contentId: ID!) {
+async function addPrToProject(octokit, projectId, prNodeId) {
+    const response = await octokit.graphql(`mutation addToProject($projectId: ID!, $contentId: ID!) {
             addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
                 item {
                     id
@@ -644,13 +642,13 @@ async function setProjectItemSprint(octokit, projectId, itemId, fieldId, iterati
  * Adds a pull request to the team's GitHub Project board and assigns it to the current Sprint iteration.
  * Only runs if the team has an entry in TEAM_TO_PROJECT_NUMBER.
  */
-async function assignPrToProjectSprint(octokit, repoOctokit, pullRequest, teamName) {
+async function assignPrToProjectSprint(octokit, pullRequest, teamName) {
     const projectNumber = consts_1.TEAM_TO_PROJECT_NUMBER[teamName];
     if (!projectNumber)
         throw new Error(`No GitHub Project configured for team "${teamName}"`);
     const projectId = await getProjectNodeId(octokit, projectNumber);
     const { fieldId, iterationId, title } = await findCurrentSprintIteration(octokit, projectId);
-    const itemId = await addPrToProject(octokit, repoOctokit, projectId, pullRequest.node_id);
+    const itemId = await addPrToProject(octokit, projectId, pullRequest.node_id);
     await setProjectItemSprint(octokit, projectId, itemId, fieldId, iterationId);
     return title;
 }
@@ -828,7 +826,7 @@ async function run() {
         // 5. Adds PR to team's GitHub Project board and assigns to the current Sprint (if team is migrated to GitHub Projects).
         if (consts_1.TEAM_TO_PROJECT_NUMBER[teamName] !== undefined) {
             try {
-                const sprintTitle = await (0, helpers_1.assignPrToProjectSprint)(orgOctokit, repoOctokit, pullRequest, teamName);
+                const sprintTitle = await (0, helpers_1.assignPrToProjectSprint)(orgOctokit, pullRequest, teamName);
                 core.info(`PR added to GitHub Project board and assigned to sprint "${sprintTitle}".`);
             }
             catch (err) {

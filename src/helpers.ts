@@ -700,10 +700,8 @@ async function findCurrentSprintIteration(
  * Adds a pull request to a GitHub Project board.
  * Idempotent — returns the existing item ID if the PR is already in the project.
  */
-async function addPrToProject(octokit: OctokitType, repoOctokit: OctokitType, projectId: string, prNodeId: string): Promise<string> {
-    // Use repoOctokit here because the org token may lack read access to private repositories,
-    // causing GitHub's GraphQL API to fail resolving the PR node ID (contentId).
-    const response = await repoOctokit.graphql<{ addProjectV2ItemById: { item: { id: string } } }>(
+async function addPrToProject(octokit: OctokitType, projectId: string, prNodeId: string): Promise<string> {
+    const response = await octokit.graphql<{ addProjectV2ItemById: { item: { id: string } } }>(
         `mutation addToProject($projectId: ID!, $contentId: ID!) {
             addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
                 item {
@@ -749,7 +747,6 @@ async function setProjectItemSprint(
  */
 export async function assignPrToProjectSprint(
     octokit: OctokitType,
-    repoOctokit: OctokitType,
     pullRequest: PullRequest,
     teamName: string,
 ): Promise<string> {
@@ -758,7 +755,7 @@ export async function assignPrToProjectSprint(
 
     const projectId = await getProjectNodeId(octokit, projectNumber);
     const { fieldId, iterationId, title } = await findCurrentSprintIteration(octokit, projectId);
-    const itemId = await addPrToProject(octokit, repoOctokit, projectId, pullRequest.node_id);
+    const itemId = await addPrToProject(octokit, projectId, pullRequest.node_id);
     await setProjectItemSprint(octokit, projectId, itemId, fieldId, iterationId);
 
     return title;

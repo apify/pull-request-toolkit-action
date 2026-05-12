@@ -151,7 +151,7 @@ async function run(): Promise<void> {
         // 5. Adds PR to team's GitHub Project board and assigns to the current Sprint (if team is migrated to GitHub Projects).
         if (TEAM_TO_PROJECT_NUMBER[teamName] !== undefined) {
             try {
-                const sprintTitle = await assignPrToProjectSprint(orgOctokit, repoOctokit, pullRequest, teamName);
+                const sprintTitle = await assignPrToProjectSprint(orgOctokit, pullRequest, teamName);
                 core.info(`PR added to GitHub Project board and assigned to sprint "${sprintTitle}".`);
             } catch (err) {
                 core.warning(`Failed to assign PR to project sprint: ${err instanceof Error ? err.message : err}`);
