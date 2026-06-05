@@ -783,7 +783,7 @@ async function run() {
         // All these 4 actions below are idempotent, so they can be run on every PR update.
         // Also, these actions do not require any action from a PR author.
         // 1. Assigns PR creator if not already assigned.
-        const isCreatorAssigned = pullRequestContext.assignees.find((u) => u?.login === user);
+        const isCreatorAssigned = pullRequest.assignees?.find((u) => u?.login === user);
         if (!isCreatorAssigned) {
             await (0, helpers_1.assignPrCreator)(github.context, repoOctokit, pullRequest);
             core.info('Creator successfully assigned.');
@@ -792,7 +792,7 @@ async function run() {
             core.info('Creator already assigned.');
         }
         // 2. Assigns current milestone if not already assigned.
-        if (!pullRequestContext.milestone && !consts_1.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
+        if (!pullRequest.milestone && !consts_1.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
             const milestoneTitle = await (0, helpers_1.fillCurrentMilestone)(github.context, repoOctokit, pullRequest, teamName);
             core.info(`Milestone successfully filled with ${milestoneTitle}.`);
         }
@@ -800,7 +800,7 @@ async function run() {
             core.info('Milestone already assigned or team is skipped.');
         }
         // 3. Adds team label if not already there.
-        const teamLabel = pullRequestContext.labels.find((label) => label.name.startsWith(consts_1.TEAM_LABEL_PREFIX));
+        const teamLabel = pullRequest.labels.find((label) => label.name.startsWith(consts_1.TEAM_LABEL_PREFIX));
         if (!teamLabel) {
             await (0, helpers_1.addTeamLabel)(github.context, repoOctokit, pullRequest, teamName);
             core.info(`Team label for team ${teamName} successfully added`);
