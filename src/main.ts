@@ -11,6 +11,7 @@ import {
     ORGANIZATION,
     TESTED_LABEL_NAME,
     SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS,
+    SKIP_ESTIMATES_FOR_TEAMS,
 } from './consts';
 import {
     assignPrCreator,
@@ -162,6 +163,11 @@ async function run(): Promise<void> {
 
         if (SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
             core.info(`Team ${teamName} is listed in SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);
+            return;
+        }
+
+        if (SKIP_ESTIMATES_FOR_TEAMS.includes(teamName)) {
+            core.info(`Team ${teamName} is listed in SKIP_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);
             return;
         }
 
