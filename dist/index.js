@@ -7,7 +7,7 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ESTIMATE_FIELD_NAME = exports.SPRINT_FIELD_NAME = exports.TEAM_TO_PROJECT_NUMBER = exports.TESTED_LABEL_NAME = exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = exports.TEAMS_NOT_USING_ZENHUB = exports.LINKING_CHECK_DELAY_MILLIS = exports.LINKING_CHECK_RETRIES = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
+exports.ESTIMATE_FIELD_NAME = exports.SPRINT_FIELD_NAME = exports.TEAM_TO_PROJECT_NUMBER = exports.TESTED_LABEL_NAME = exports.SKIP_ESTIMATES_FOR_TEAMS = exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = exports.TEAMS_NOT_USING_ZENHUB = exports.LINKING_CHECK_DELAY_MILLIS = exports.LINKING_CHECK_RETRIES = exports.TEAM_NAME_TO_LABEL = exports.TEAM_LABEL_PREFIX = exports.ZENHUB_WORKSPACE_NAME = exports.ZENHUB_WORKSPACE_ID = exports.PARENT_TEAM_SLUG = exports.ORGANIZATION = void 0;
 exports.ORGANIZATION = 'apify';
 exports.PARENT_TEAM_SLUG = 'product-engineering';
 exports.ZENHUB_WORKSPACE_ID = '5f6454160d9f82000fa6733f';
@@ -22,6 +22,8 @@ exports.LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
 exports.TEAMS_NOT_USING_ZENHUB = ['put-some-team-here', 'Service Account'];
 // Excludes the team from the milestone, correct linking and estimate checks.
 exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs', 'Service Account', 'AI'];
+// Excludes the team from the correct linking and estimate checks only (milestones are still assigned).
+exports.SKIP_ESTIMATES_FOR_TEAMS = ['Tooling'];
 exports.TESTED_LABEL_NAME = 'tested';
 // Map of team name → GitHub Project number (the number visible in the project URL:
 // github.com/orgs/apify/projects/<number>).
@@ -838,6 +840,10 @@ async function run() {
         }
         if (consts_1.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
             core.info(`Team ${teamName} is listed in SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);
+            return;
+        }
+        if (consts_1.SKIP_ESTIMATES_FOR_TEAMS.includes(teamName)) {
+            core.info(`Team ${teamName} is listed in SKIP_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);
             return;
         }
         // On the other hand, this is a check that author of the PR correctly filled in the details.
