@@ -19,7 +19,7 @@ exports.TEAM_NAME_TO_LABEL = {
 };
 exports.LINKING_CHECK_RETRIES = 8;
 exports.LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
-exports.TEAMS_NOT_USING_ZENHUB = ['put-some-team-here', 'Service Account'];
+exports.TEAMS_NOT_USING_ZENHUB = ['put-some-team-here', 'Service Account', 'Security'];
 // Excludes the team from the milestone, correct linking and estimate checks.
 exports.SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs', 'Service Account', 'AI'];
 // Excludes the team from the correct linking and estimate checks only (milestones are still assigned).
