@@ -6,8 +6,6 @@
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
-    "lib": []
   },
   "include": ["."],
-  "exclude": ["node_modules"]
 }

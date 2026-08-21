@@ -338,7 +338,7 @@ async function getGitHubLinkedIssues(octokit, pullRequest) {
                         }
                     }
                 }`, { owner: ref.owner, repo: ref.repo, number: ref.number });
-            const issue = issueResponse.repository.issue;
+            const { issue } = issueResponse.repository;
             if (!issue) {
                 core.warning(`Cross-repo reference ${ref.owner}/${ref.repo}#${ref.number} does not point to an issue, skipping.`);
                 continue;
