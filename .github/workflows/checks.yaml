@@ -1,4 +1,4 @@
-name: Lint and test
+name: Lint, test, type check and formatting check
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
       - '**'
 
 jobs:
-  lint_and_test:
+  run-checks:
     runs-on: ubuntu-22.04-arm64
     steps:
       - name: Checkout repo

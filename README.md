@@ -11,10 +11,6 @@ This action automates a couple of processes connected with the management of Git
   - PR is either linked with epic or issue or labeled as `adhoc`
   - PR itself or linked issue is estimated
 
-## Wishlist / TODOs
-
-- GitHub action for publishing of a new version.
-
 ## Action input
 
 | Name           | Description                                        | Example        | Required |
@@ -52,7 +48,8 @@ jobs:
           zenhub-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_ZENHUB_TOKEN }}
 ```
 
-## Contributing
+## How to release new version
 
-1. Update code in `./src`
-2. Publish a new version of an action using the new release (It needs to be done manually)
+1. Create a PR. **IMPORTANT: Avoid using the `chore:` prefix, as it doesn't work with RELEASE-PLEASE. Use `feat:` or `fix:` instead.**
+2. Merge PR into the main branch after approval. This triggers an automated workflow that generates a new PR for the release using the RELEASE-PLEASE action.
+3. Navigate to the PR and merge it into the main branch. This will publish the release with an updated changelog.

@@ -1,0 +1,22 @@
+# This workflow creates new github release and updates changelog
+name: release new version
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: release-please
+        uses: googleapis/release-please-action@v4
+        with:
+          release-type: simple
