@@ -17,7 +17,7 @@ import {
     ESTIMATE_FIELD_NAME,
     ZENHUB_WORKSPACE_ID,
     ZENHUB_WORKSPACE_NAME,
-} from './consts.js';
+} from './consts.ts';
 
 type OctokitType = ReturnType<typeof getOctokit>;
 
