@@ -1,6 +1,6 @@
-import * as core from '@actions/core';
-import * as github from '@actions/github';
-import { components } from '@octokit/openapi-types';
+import type * as Core from '@actions/core';
+import type { context as Context, getOctokit as getOctokitImport } from '@actions/github';
+import type { GetResponseDataTypeFromEndpointMethod } from '@octokit/types';
 
 import {
     TEAM_LABEL_PREFIX,
@@ -12,7 +12,7 @@ import {
     TESTED_LABEL_NAME,
     SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS,
     SKIP_ESTIMATES_FOR_TEAMS,
-} from './consts';
+} from './consts.js';
 import {
     assignPrCreator,
     fillCurrentMilestone,
@@ -23,36 +23,59 @@ import {
     isPullRequestTested,
     isRepoIncludedInZenHubWorkspace,
     retry,
-} from './helpers';
+} from './helpers.js';
 
-type Assignee = components['schemas']['simple-user'];
-type Label = components['schemas']['label'];
+type Octokit = ReturnType<typeof getOctokitImport>;
 
-async function run(): Promise<void> {
+type PullRequest = GetResponseDataTypeFromEndpointMethod<Octokit['rest']['pulls']['get']>;
+type Assignee = NonNullable<PullRequest['assignees']>[number];
+type Label = NonNullable<PullRequest['labels']>[number];
+
+export async function main({
+    getOctokit,
+    context,
+    core,
+    env,
+}: {
+    getOctokit: typeof getOctokitImport;
+    context: typeof Context;
+    core: typeof Core;
+    env: Record<string, string | undefined>;
+}) {
     try {
+        const repoToken = env.GITHUB_REPO_TOKEN;
+        const orgToken = env.GITHUB_ORG_TOKEN;
+        const zenhubToken = env.ZENHUB_TOKEN;
+        if (!repoToken) throw new Error('Missing repo-token input!');
+        if (!orgToken) throw new Error('Missing org-token input!');
+        if (!zenhubToken) throw new Error('Missing zenhub-token input!');
+
         // This skips the action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
         // Do not use pull_request?.base but pull_request?.head because the former one does not container the forked repo name.
-        if (!github.context.payload.pull_request?.head.repo.full_name.startsWith(`${ORGANIZATION}/`)) {
-            core.warning(`Skipping toolkit action for PR from external fork: ${github.context.payload.pull_request?.head.repo.full_name}`);
+        if (!context.payload.pull_request?.head.repo.full_name.startsWith(`${ORGANIZATION}/`)) {
+            core.warning(
+                `Skipping toolkit action for PR from external fork: ${context.payload.pull_request?.head.repo.full_name}`,
+            );
             return;
         }
         core.info('Pull request is from an apify organization, not from an external fork.');
 
         // Skip when PR is not into the default branch. We only want to run this on PRs to develop or main when develop is not used but we
         // don't want to run this on releases or PR chains.
-        const defaultBranch = github.context.payload.pull_request.head.repo.default_branch;
-        const targetBranch = github.context.payload.pull_request.base.ref;
+        const defaultBranch = context.payload.pull_request.head.repo.default_branch;
+        const targetBranch = context.payload.pull_request.base.ref;
         if (defaultBranch !== targetBranch) {
-            core.info(`Skipping toolkit action for PR not into the default branch "${defaultBranch}" but "${targetBranch}" instead.`);
+            core.info(
+                `Skipping toolkit action for PR not into the default branch "${defaultBranch}" but "${targetBranch}" instead.`,
+            );
             return;
         }
         core.info(`Pull request is into the default branch "${defaultBranch}".`);
 
         // Octokit configured with repository token - this can be used to modify pull-request.
-        const repoToken = core.getInput('repo-token');
-        const repoOctokit = github.getOctokit(repoToken);
+        const repoOctokit = getOctokit(repoToken);
 
-        const pullRequestContext = github.context.payload.pull_request;
+        const pullRequestContext = context.payload.pull_request;
         if (!pullRequestContext) throw new Error('Action works only for PRs!');
 
         const { data: pullRequest } = await repoOctokit.rest.pulls.get({
@@ -68,9 +91,13 @@ async function run(): Promise<void> {
         }
         if (user.toLowerCase() === 'copilot') {
             // copilot assigns the user who initiated the PR, let's use that
-            const otherAssignees = pullRequest.assignees?.filter((assignee) => assignee.login.toLowerCase() !== 'copilot');
+            const otherAssignees = pullRequest.assignees?.filter(
+                (assignee) => assignee.login.toLowerCase() !== 'copilot',
+            );
             if (otherAssignees?.length !== 1) {
-                core.warning('PR created by Copilot, and there isn\'t exactly one other assignee -> cannot determine user. Skipping toolkit action.');
+                core.warning(
+                    "PR created by Copilot, and there isn't exactly one other assignee -> cannot determine user. Skipping toolkit action.",
+                );
                 return;
             }
             user = otherAssignees[0].login;
@@ -78,8 +105,7 @@ async function run(): Promise<void> {
         }
 
         // Organization token providing read-only access to the organization.
-        const orgToken = core.getInput('org-token');
-        const orgOctokit = github.getOctokit(orgToken);
+        const orgOctokit = getOctokit(orgToken);
 
         // Skip the PR if not a member of one of the product teams.
         const teamName = await findUsersTeamName(orgOctokit, user);
@@ -90,9 +116,11 @@ async function run(): Promise<void> {
         core.info(`User ${user} belongs to a ${teamName} team.`);
 
         // Skip if the repository is not connected to the ZenHub workspace.
-        const belongsToZenhub = await isRepoIncludedInZenHubWorkspace(pullRequest.base.repo.name);
+        const belongsToZenhub = await isRepoIncludedInZenHubWorkspace(pullRequest.base.repo.name, zenhubToken);
         if (!belongsToZenhub) {
-            core.warning(`Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`);
+            core.warning(
+                `Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`,
+            );
             return;
         }
         core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace.`);
@@ -111,7 +139,7 @@ async function run(): Promise<void> {
         // 1. Assigns PR creator if not already assigned.
         const isCreatorAssigned = pullRequest.assignees?.find((u: Assignee) => u?.login === user);
         if (!isCreatorAssigned) {
-            await assignPrCreator(github.context, repoOctokit, pullRequest);
+            await assignPrCreator(context, repoOctokit, pullRequest);
             core.info('Creator successfully assigned.');
         } else {
             core.info('Creator already assigned.');
@@ -119,7 +147,7 @@ async function run(): Promise<void> {
 
         // 2. Assigns current milestone if not already assigned.
         if (!pullRequest.milestone && !SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
-            const milestoneTitle = await fillCurrentMilestone(github.context, repoOctokit, pullRequest, teamName);
+            const milestoneTitle = await fillCurrentMilestone(context, repoOctokit, pullRequest, teamName);
             core.info(`Milestone successfully filled with ${milestoneTitle}.`);
         } else {
             core.info('Milestone already assigned or team is skipped.');
@@ -128,7 +156,7 @@ async function run(): Promise<void> {
         // 3. Adds team label if not already there.
         const teamLabel = pullRequest.labels.find((label: Label) => label.name.startsWith(TEAM_LABEL_PREFIX));
         if (!teamLabel) {
-            await addTeamLabel(github.context, repoOctokit, pullRequest, teamName);
+            await addTeamLabel(context, repoOctokit, pullRequest, teamName);
             core.info(`Team label for team ${teamName} successfully added`);
         } else {
             core.info(`Team label ${teamLabel.name} already present`);
@@ -162,21 +190,26 @@ async function run(): Promise<void> {
         }
 
         if (SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
-            core.info(`Team ${teamName} is listed in SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);
+            core.info(
+                `Team ${teamName} is listed in SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`,
+            );
             return;
         }
 
         if (SKIP_ESTIMATES_FOR_TEAMS.includes(teamName)) {
-            core.info(`Team ${teamName} is listed in SKIP_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`);
+            core.info(
+                `Team ${teamName} is listed in SKIP_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`,
+            );
             return;
         }
 
         // On the other hand, this is a check that author of the PR correctly filled in the details.
         // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
         await retry(
-            async () => ensureCorrectLinkingAndEstimates(pullRequest, orgOctokit),
+            async () => ensureCorrectLinkingAndEstimates(pullRequest, orgOctokit, zenhubToken, core),
             LINKING_CHECK_RETRIES,
             LINKING_CHECK_DELAY_MILLIS,
+            core,
         );
         core.info('Pull request is correctly linked to a ZenHub or GitHub issue, or is adhoc, and has an estimate.');
         core.info('All checks passed!');
@@ -188,5 +221,3 @@ async function run(): Promise<void> {
         }
     }
 }
-
-void run();

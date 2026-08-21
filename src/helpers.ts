@@ -1,7 +1,12 @@
-import * as core from '@actions/core';
-import { type getOctokit } from '@actions/github';
-import { Context } from '@actions/github/lib/context.d';
-import { components } from '@octokit/openapi-types/types.d';
+import type * as Core from '@actions/core';
+import type { context as contextImport, getOctokit } from '@actions/github';
+import type { GetResponseDataTypeFromEndpointMethod } from '@octokit/types';
+
+type Context = typeof contextImport;
+type Octokit = ReturnType<typeof getOctokit>;
+
+type PullRequest = GetResponseDataTypeFromEndpointMethod<Octokit['rest']['pulls']['get']>;
+export type Milestone = NonNullable<PullRequest['milestone']>;
 
 import {
     ORGANIZATION,
@@ -12,30 +17,27 @@ import {
     ESTIMATE_FIELD_NAME,
     ZENHUB_WORKSPACE_ID,
     ZENHUB_WORKSPACE_NAME,
-} from './consts';
-
-type Milestone = components['schemas']['milestone'];
-type PullRequest = components['schemas']['pull-request'];
+} from './consts.js';
 
 type OctokitType = ReturnType<typeof getOctokit>;
 
 type ZenhubRepo = {
-    id: number,
-    name: string,
-    gh_id: number,
+    id: number;
+    name: string;
+    gh_id: number;
 };
 
 type ZenhubIssue = {
-    id: number,
-    type: string,
-    state: string,
-    title: string,
-    number: number,
-}
+    id: number;
+    type: string;
+    state: string;
+    title: string;
+    number: number;
+};
 
 type ZenhubIssueWithRepo = ZenhubIssue & {
-    repo: ZenhubRepo,
-}
+    repo: ZenhubRepo;
+};
 
 type GitHubLinkedIssue = {
     nodeId: string;
@@ -45,15 +47,15 @@ type GitHubLinkedIssue = {
 };
 
 export type ZenhubTimelineItem = {
-    id: string,
-    type: string,
-    createdAt: Date,
-    issue: object,
+    id: string;
+    type: string;
+    createdAt: Date;
+    issue: object;
     data: {
-        issue: ZenhubIssue,
-        repository: ZenhubRepo,
-        issue_repository: ZenhubRepo,
-    },
+        issue: ZenhubIssue;
+        repository: ZenhubRepo;
+        issue_repository: ZenhubRepo;
+    };
 };
 
 /**
@@ -96,9 +98,7 @@ export function findCurrentTeamMilestone(milestones: Milestone[], teamName: stri
 
     // All open milestones
     const openMilestones: Milestone[] = milestones.filter((milestone: Milestone) => {
-        return milestone.state === 'open'
-            && milestone.due_on
-            && new Date(milestone.due_on) >= now;
+        return milestone.state === 'open' && milestone.due_on && new Date(milestone.due_on) >= now;
     });
 
     // Find milestone for the team, if team name was provided
@@ -116,7 +116,10 @@ export function findCurrentTeamMilestone(milestones: Milestone[], teamName: stri
  */
 export async function assignPrCreator(context: Context, octokit: OctokitType, pullRequest: PullRequest): Promise<void> {
     const assignees = pullRequest.assignees || [];
-    const assigneeLogins = ([pullRequest.user].concat(assignees)).map((u) => u?.login).filter((login): login is string => !!login);
+    const assigneeLogins = [pullRequest.user]
+        .concat(assignees)
+        .map((u) => u?.login)
+        .filter((login): login is string => !!login);
 
     // Assign pull request with PR creator
     await octokit.rest.issues.update({
@@ -130,17 +133,22 @@ export async function assignPrCreator(context: Context, octokit: OctokitType, pu
 /**
  * If milestone is not set then sets it to a current milestone of a given team.
  */
-export async function fillCurrentMilestone(context: Context, octokit: OctokitType, pullRequest: PullRequest, teamName: string): Promise<string> {
+export async function fillCurrentMilestone(
+    context: Context,
+    octokit: OctokitType,
+    pullRequest: PullRequest,
+    teamName: string,
+): Promise<string> {
     // Assign PR to right sprint milestone
     const milestones = await octokit.paginate('GET /repos/{owner}/{repo}/milestones', {
         owner: context.repo.owner,
         repo: context.repo.repo,
         per_page: 100,
     });
-    if (milestones.length === 0) await fail(pullRequest, 'No sprint milestone!');
+    if (milestones.length === 0) fail(pullRequest, 'No sprint milestone!');
 
     const foundMilestone = findCurrentTeamMilestone(milestones, teamName);
-    if (!foundMilestone) await fail(pullRequest, 'Cannot find current sprint milestone!');
+    if (!foundMilestone) fail(pullRequest, 'Cannot find current sprint milestone!');
 
     await octokit.rest.issues.update({
         owner: context.repo.owner,
@@ -163,7 +171,12 @@ export function getTeamLabelName(teamName: string): string {
 /**
  * Assigns team label to the pull request.
  */
-export async function addTeamLabel(context: Context, octokit: OctokitType, pullRequest: PullRequest, teamName: string): Promise<void> {
+export async function addTeamLabel(
+    context: Context,
+    octokit: OctokitType,
+    pullRequest: PullRequest,
+    teamName: string,
+): Promise<void> {
     const teamLabelName = getTeamLabelName(teamName);
 
     const { data: labels } = await octokit.rest.issues.listLabelsForRepo({
@@ -173,7 +186,7 @@ export async function addTeamLabel(context: Context, octokit: OctokitType, pullR
     });
 
     const isExistingLabel = labels.some((existingLabel: { name: string }) => existingLabel.name === teamLabelName);
-    if (!isExistingLabel) await fail(pullRequest, `Team label "${teamLabelName}" of team ${teamName} does not exists!`);
+    if (!isExistingLabel) fail(pullRequest, `Team label "${teamLabelName}" of team ${teamName} does not exists!`);
 
     await octokit.rest.issues.addLabels({
         owner: context.repo.owner,
@@ -186,9 +199,7 @@ export async function addTeamLabel(context: Context, octokit: OctokitType, pullR
 /**
  * Sends a query to ZenHub GraphQL API server using fetch.
  */
-async function queryZenhubGraphql(operationName: string, query: string, variables: object) {
-    const zenhubToken = core.getInput('zenhub-token');
-
+async function queryZenhubGraphql(operationName: string, query: string, variables: object, zenhubToken: string) {
     const response = await fetch('https://api.zenhub.com/public/graphql', {
         method: 'POST',
         headers: {
@@ -202,7 +213,7 @@ async function queryZenhubGraphql(operationName: string, query: string, variable
         throw new Error(`ZenHub GraphQL request failed with status ${response.status}: ${await response.text()}`);
     }
 
-    return { data: (await response.json()) };
+    return { data: await response.json() };
 }
 
 const ZENHUB_PR_DETAILS_QUERY = `
@@ -269,15 +280,20 @@ query getWorkspaceRepositories($workspaceName: String!, $endCursor: String) {
 /**
  * Checks if the repository is included in the ZenHub workspace defined by ZENHUB_WORKSPACE_NAME.
  */
-export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): Promise<boolean> {
+export async function isRepoIncludedInZenHubWorkspace(repositoryName: string, zenhubToken: string): Promise<boolean> {
     const repositories = [];
     let pageInfo;
 
     do {
-        const response = await queryZenhubGraphql('getWorkspaceRepositories', ZENHUB_WORKSPACE_REPOSITORIES_QUERY, {
-            workspaceName: ZENHUB_WORKSPACE_NAME,
-            endCursor: pageInfo?.endCursor,
-        });
+        const response = await queryZenhubGraphql(
+            'getWorkspaceRepositories',
+            ZENHUB_WORKSPACE_REPOSITORIES_QUERY,
+            {
+                workspaceName: ZENHUB_WORKSPACE_NAME,
+                endCursor: pageInfo?.endCursor,
+            },
+            zenhubToken,
+        );
 
         if (response.data.data.viewer.searchWorkspaces.nodes.length === 0) {
             throw new Error(`Workspace ${ZENHUB_WORKSPACE_NAME} was not found!`);
@@ -285,7 +301,7 @@ export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): P
 
         const { repositoriesConnection } = response.data.data.viewer.searchWorkspaces.nodes[0];
         const repos = repositoriesConnection.nodes;
-        pageInfo = repositoriesConnection.pageInfo as { endCursor: string, hasNextPage: boolean };
+        pageInfo = repositoriesConnection.pageInfo as { endCursor: string; hasNextPage: boolean };
 
         repositories.push(...repos);
     } while (pageInfo.hasNextPage);
@@ -303,16 +319,17 @@ export async function isRepoIncludedInZenHubWorkspace(repositoryName: string): P
 export async function getGitHubLinkedIssues(
     octokit: OctokitType,
     pullRequest: PullRequest,
+    core: typeof Core,
 ): Promise<GitHubLinkedIssue[]> {
     const response = await octokit.graphql<{
         repository: {
             pullRequest: {
                 closingIssuesReferences: {
-                    nodes: Array<{
+                    nodes: ({
                         id: string;
                         number: number;
                         repository: { name: string; databaseId: number };
-                    } | null>;
+                    } | null)[];
                 };
             };
         };
@@ -371,7 +388,9 @@ export async function getGitHubLinkedIssues(
             );
             const { issue } = issueResponse.repository;
             if (!issue) {
-                core.warning(`Cross-repo reference ${ref.owner}/${ref.repo}#${ref.number} does not point to an issue, skipping.`);
+                core.warning(
+                    `Cross-repo reference ${ref.owner}/${ref.repo}#${ref.number} does not point to an issue, skipping.`,
+                );
                 continue;
             }
             crossRepoIssues.push({
@@ -392,10 +411,10 @@ export async function getGitHubLinkedIssues(
  * Extracts cross-repository closing references from a PR body
  * (e.g. "Closes owner/repo#123" → [{ owner: 'owner', repo: 'repo', number: 123 }]).
  */
-function extractCrossRepoClosingReferences(body: string | null): Array<{ owner: string; repo: string; number: number }> {
+function extractCrossRepoClosingReferences(body: string | null): { owner: string; repo: string; number: number }[] {
     if (!body) return [];
 
-    const results: Array<{ owner: string; repo: string; number: number }> = [];
+    const results: { owner: string; repo: string; number: number }[] = [];
     const keyword = '(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s+';
 
     // Short format: "Closes owner/repo#N"
@@ -407,7 +426,10 @@ function extractCrossRepoClosingReferences(body: string | null): Array<{ owner: 
     }
 
     // Full URL format: "Closes https://github.com/owner/repo/issues/N"
-    const urlRegex = new RegExp(`${keyword}https:\\/\\/github\\.com\\/([a-zA-Z0-9._-]+)\\/([a-zA-Z0-9._-]+)\\/issues\\/(\\d+)`, 'gi');
+    const urlRegex = new RegExp(
+        `${keyword}https:\\/\\/github\\.com\\/([a-zA-Z0-9._-]+)\\/([a-zA-Z0-9._-]+)\\/issues\\/(\\d+)`,
+        'gi',
+    );
     match = urlRegex.exec(body);
     while (match !== null) {
         results.push({ owner: match[1], repo: match[2], number: parseInt(match[3], 10) });
@@ -425,9 +447,9 @@ export async function getGitHubProjectsEstimate(octokit: OctokitType, nodeId: st
     const response = await octokit.graphql<{
         node: {
             projectItems?: {
-                nodes: Array<{
+                nodes: {
                     fieldValueByName: { number: number } | null;
-                }>;
+                }[];
             };
         };
     }>(
@@ -489,43 +511,63 @@ export function hasCrossRepoClosingReference(body: string | null): boolean {
  * - PR either has issue or epic linked or has `adhoc` label
  * - either PR or linked issue has estimate
  */
-export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest, octokit: OctokitType): Promise<void> {
-    const pullRequestGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_PR_DETAILS_QUERY, {
-        repositoryGhId: pullRequest.head.repo?.id,
-        issueNumber: pullRequest.number,
-        workspaceId: ZENHUB_WORKSPACE_ID,
-    });
+export async function ensureCorrectLinkingAndEstimates(
+    pullRequest: PullRequest,
+    octokit: OctokitType,
+    zenhubToken: string,
+    core: typeof Core,
+): Promise<void> {
+    const pullRequestGraphqlResponse = await queryZenhubGraphql(
+        'getIssueInfo',
+        ZENHUB_PR_DETAILS_QUERY,
+        {
+            repositoryGhId: pullRequest.head.repo?.id,
+            issueNumber: pullRequest.number,
+            workspaceId: ZENHUB_WORKSPACE_ID,
+        },
+        zenhubToken,
+    );
 
     const pullRequestEstimate = pullRequestGraphqlResponse.data.data.issueByInfo.estimate?.value;
     const linkedIssue = getLinkedIssue(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
     const linkedEpics = getLinkedEpics(pullRequestGraphqlResponse.data.data.issueByInfo.timelineItems.nodes);
-    const githubLinkedIssues = await getGitHubLinkedIssues(octokit, pullRequest);
+    const githubLinkedIssues = await getGitHubLinkedIssues(octokit, pullRequest, core);
     const pullRequestGithubEstimate = await getGitHubProjectsEstimate(octokit, pullRequest.node_id);
 
     if (
-        !linkedIssue
-        && githubLinkedIssues.length === 0
-        && linkedEpics.length === 0
-        && !pullRequest.labels.some(({ name }) => name === 'adhoc')
-    ) await fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!');
+        !linkedIssue &&
+        githubLinkedIssues.length === 0 &&
+        linkedEpics.length === 0 &&
+        !pullRequest.labels.some(({ name }) => name === 'adhoc')
+    )
+        fail(pullRequest, 'Pull request is neither linked to an issue or epic nor labeled as adhoc!');
 
     // Prefer ZenHub-linked issue; fall back to first GitHub-native linked issue for estimate lookup.
-    const effectiveIssue: { nodeId?: string; repoGhId: number; number: number; repoName: string } | undefined = linkedIssue
-        ? { repoGhId: linkedIssue.repo.gh_id, number: linkedIssue.number, repoName: linkedIssue.repo.name }
-        : githubLinkedIssues[0];
+    const effectiveIssue: { nodeId?: string; repoGhId: number; number: number; repoName: string } | undefined =
+        linkedIssue
+            ? { repoGhId: linkedIssue.repo.gh_id, number: linkedIssue.number, repoName: linkedIssue.repo.name }
+            : githubLinkedIssues[0];
 
     const hasAnyPrEstimate = !!(pullRequestEstimate || pullRequestGithubEstimate !== undefined);
 
     if (!effectiveIssue && !hasAnyPrEstimate) {
-        await fail(pullRequest, 'If issue is not linked to the pull request then estimate the pull request in ZenHub or GitHub Projects!');
+        fail(
+            pullRequest,
+            'If issue is not linked to the pull request then estimate the pull request in ZenHub or GitHub Projects!',
+        );
     }
     if (!effectiveIssue) return;
 
-    const issueGraphqlResponse = await queryZenhubGraphql('getIssueInfo', ZENHUB_ISSUE_ESTIMATE_QUERY, {
-        repositoryGhId: effectiveIssue.repoGhId,
-        issueNumber: effectiveIssue.number,
-        workspaceId: ZENHUB_WORKSPACE_ID,
-    });
+    const issueGraphqlResponse = await queryZenhubGraphql(
+        'getIssueInfo',
+        ZENHUB_ISSUE_ESTIMATE_QUERY,
+        {
+            repositoryGhId: effectiveIssue.repoGhId,
+            issueNumber: effectiveIssue.number,
+            workspaceId: ZENHUB_WORKSPACE_ID,
+        },
+        zenhubToken,
+    );
     const issueZenhubEstimate = issueGraphqlResponse.data.data.issueByInfo?.estimate?.value;
 
     // GitHub Projects estimate is only checked for GitHub-native linked issues, where the
@@ -536,7 +578,7 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
         : undefined;
 
     if (!hasAnyPrEstimate && issueZenhubEstimate === undefined && issueGithubEstimate === undefined) {
-        await fail(pullRequest, 'None of the pull request and linked issue has an estimate set in ZenHub or GitHub Projects');
+        fail(pullRequest, 'None of the pull request and linked issue has an estimate set in ZenHub or GitHub Projects');
     }
 }
 
@@ -544,7 +586,7 @@ export async function ensureCorrectLinkingAndEstimates(pullRequest: PullRequest,
  * Adds a comment describing what is wrong with the pull request setup and then fails the action.
  * Comment is not send if isDryRun=true. Only error is thrown in such case.
  */
-export async function fail(pullRequest: PullRequest, errorMessage: string): Promise<void> {
+export function fail(pullRequest: PullRequest, errorMessage: string): never {
     if (!pullRequest.head.repo) throw new Error('Unknown repo!');
 
     throw new Error(errorMessage);
@@ -554,13 +596,13 @@ export async function fail(pullRequest: PullRequest, errorMessage: string): Prom
  * Processes a track record of ZenHub events for a PR and returns an issue that is currently linked to the PR.
  */
 export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssueWithRepo | undefined {
-    const connectPrTimelineItems = timelineItems.filter(
-        (item) => ['issue.disconnect_pr_from_issue', 'issue.connect_pr_to_issue'].includes(item.type),
+    const connectPrTimelineItems = timelineItems.filter((item) =>
+        ['issue.disconnect_pr_from_issue', 'issue.connect_pr_to_issue'].includes(item.type),
     );
-    connectPrTimelineItems.sort((a, b) => (new Date(a.createdAt).getTime()) - (new Date(b.createdAt).getTime()));
+    connectPrTimelineItems.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     const lastItem = connectPrTimelineItems.pop();
-    if (!lastItem || lastItem.type as string === 'issue.disconnect_pr_from_issue') return;
+    if (!lastItem || (lastItem.type as string) === 'issue.disconnect_pr_from_issue') return;
 
     return {
         ...lastItem.data.issue,
@@ -572,10 +614,10 @@ export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssue
  * Processes a track record of ZenHub events for a PR and returns a list of epics that are currently linked to the PR.
  */
 export function getLinkedEpics(timelineItems: ZenhubTimelineItem[]): ZenhubIssue[] {
-    const connectEpicTimelintItems = timelineItems.filter(
-        (item) => ['issue.remove_issue_from_epic', 'issue.add_issue_to_epic'].includes(item.type),
+    const connectEpicTimelintItems = timelineItems.filter((item) =>
+        ['issue.remove_issue_from_epic', 'issue.add_issue_to_epic'].includes(item.type),
     );
-    connectEpicTimelintItems.sort((a, b) => (new Date(a.createdAt).getTime()) - (new Date(b.createdAt).getTime()));
+    connectEpicTimelintItems.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     const connectedEpics: Map<number, ZenhubIssue> = new Map();
 
@@ -593,10 +635,12 @@ export function getLinkedEpics(timelineItems: ZenhubTimelineItem[]): ZenhubIssue
 export function isTestFilePath(filePath: string): boolean {
     const testFileNameRegex = /(\.|_|\w)*tests?(\.|_|\w)*\.\w{2,3}$/;
 
-    return filePath.includes('/test/')
-        || filePath.includes('/tests/')
-        || filePath.startsWith('test/')
-        || testFileNameRegex.test(filePath);
+    return (
+        filePath.includes('/test/') ||
+        filePath.includes('/tests/') ||
+        filePath.startsWith('test/') ||
+        testFileNameRegex.test(filePath)
+    );
 }
 
 /**
@@ -621,12 +665,12 @@ type GitHubProjectIterationField = {
     id: string;
     name: string;
     configuration: {
-        iterations: Array<{
+        iterations: {
             id: string;
             title: string;
             startDate: string;
             duration: number;
-        }>;
+        }[];
     };
 };
 
@@ -769,9 +813,15 @@ export async function assignPrToProjectSprint(
 /**
  * Retries given function `retries` times with `delayMillis` delay between each attempt if the function fails.
  */
-export async function retry(func: (isLastAttempt: boolean) => Promise<void>, retries: number, delayMillis: number): Promise<void> {
+export async function retry(
+    func: (isLastAttempt: boolean) => Promise<void>,
+    retries: number,
+    delayMillis: number,
+    core: typeof Core,
+): Promise<void> {
     let currentRetry = 0;
-    while (true) { // eslint-disable-line no-constant-condition
+    while (true) {
+        // eslint-disable-line no-constant-condition
         try {
             const isLastAttempt = currentRetry === retries;
 

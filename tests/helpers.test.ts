@@ -1,30 +1,32 @@
-// import { getOctokit } from '@actions/github';
-import { components } from '@octokit/openapi-types';
+import type * as Core from '@actions/core';
+import { describe, expect, test, vi } from 'vitest';
 
+import type { ZenhubTimelineItem, Milestone } from '../src/helpers.js';
 import {
     findCurrentTeamMilestone,
     getTeamLabelName,
-    // ensureCorrectLinkingAndEstimates,
-    // isRepoIncludedInZenHubWorkspace,
     getLinkedIssue,
     getLinkedEpics,
-    ZenhubTimelineItem,
     isTestFilePath,
     retry,
     assignPrToProjectSprint,
     getGitHubLinkedIssues,
     getGitHubProjectsEstimate,
     hasCrossRepoClosingReference,
-} from './helpers';
+} from '../src/helpers.js';
 
-jest.mock('./consts', () => ({
-    ...jest.requireActual('./consts'),
+vi.mock('../src/consts', async (importOriginal) => ({
+    ...(await importOriginal()),
     TEAM_TO_PROJECT_NUMBER: { 'Core Services': 42 },
     SPRINT_FIELD_NAME: 'Sprint',
     ESTIMATE_FIELD_NAME: 'Estimate',
 }));
 
-type Milestone = components['schemas']['milestone'];
+const mockCore = {
+    info: (message: string) => console.log(`INFO: ${message}`),
+    warning: (message: string) => console.log(`WARNING: ${message}`),
+    error: (message: string) => console.log(`ERROR: ${message}`),
+} as unknown as typeof Core;
 
 const BASE_MILESTONE = {
     node_id: '',
@@ -50,19 +52,19 @@ describe('findCurrentTeamMilestone', () => {
                 ...BASE_MILESTONE,
                 state: 'open',
                 title: '14th Sprint - Console team',
-                due_on: (new Date(Date.now() + 24 * 3600 * 1000)).toISOString(), // Must be in the future
+                due_on: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), // Must be in the future
             },
             {
                 ...BASE_MILESTONE,
                 state: 'open',
                 title: '14th Sprint - Core Services team',
-                due_on: (new Date(Date.now() + 24 * 3600 * 1000)).toISOString(), // Must be in the future
+                due_on: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), // Must be in the future
             },
             {
                 ...BASE_MILESTONE,
                 state: 'open',
                 title: '14th Sprint - Web team',
-                due_on: (new Date(Date.now() + 24 * 3600 * 1000)).toISOString(), // Must be in the future
+                due_on: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), // Must be in the future
             },
         ];
         const foundMilestone = findCurrentTeamMilestone(milestones, 'Core Services');
@@ -75,10 +77,12 @@ describe('findCurrentTeamMilestone', () => {
                 ...BASE_MILESTONE,
                 state: 'closed',
                 title: '13th Sprint - Core Services team',
-                due_on: (new Date(Date.now() + 24 * 3600 * 1000)).toISOString(), // Must be in the future
+                due_on: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), // Must be in the future
             },
         ];
-        expect(() => findCurrentTeamMilestone(milestones, 'Core Services')).toThrow('Cannot find milestone for "Core Services" team');
+        expect(() => findCurrentTeamMilestone(milestones, 'Core Services')).toThrow(
+            'Cannot find milestone for "Core Services" team',
+        );
     });
 
     test('ignores past milestones', () => {
@@ -90,7 +94,9 @@ describe('findCurrentTeamMilestone', () => {
                 due_on: '2021-05-23T07:00:00Z',
             },
         ];
-        expect(() => findCurrentTeamMilestone(milestones, 'Core Services')).toThrow('Cannot find milestone for "Core Services" team');
+        expect(() => findCurrentTeamMilestone(milestones, 'Core Services')).toThrow(
+            'Cannot find milestone for "Core Services" team',
+        );
     });
 });
 
@@ -172,11 +178,16 @@ describe('retry', () => {
     test('works correctly when succeeds', async () => {
         let counter = 0;
 
-        await retry(async () => {
-            counter++;
+        await retry(
+            async () => {
+                counter++;
 
-            if (counter < 3) throw new Error('Some error');
-        }, 5, 10);
+                if (counter < 3) throw new Error('Some error');
+            },
+            5,
+            10,
+            mockCore,
+        );
 
         expect(counter).toBe(3);
     });
@@ -186,11 +197,16 @@ describe('retry', () => {
         let lastAttemptCalls = 0;
 
         await expect(
-            retry(async (isLastAttempt) => {
-                if (isLastAttempt) lastAttemptCalls++;
-                counter++;
-                throw new Error('Some error');
-            }, 5, 10),
+            retry(
+                async (isLastAttempt) => {
+                    if (isLastAttempt) lastAttemptCalls++;
+                    counter++;
+                    throw new Error('Some error');
+                },
+                5,
+                10,
+                mockCore,
+            ),
         ).rejects.toEqual(new Error('Some error'));
 
         expect(counter).toBe(6);
@@ -202,7 +218,7 @@ describe('assignPrToProjectSprint', () => {
     const MOCK_PR = { node_id: 'PR_node_id_123' } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
     test('throws when team has no project configured', async () => {
-        const mockOctokit = { graphql: jest.fn() } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+        const mockOctokit = { graphql: vi.fn() } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
         await expect(assignPrToProjectSprint(mockOctokit, MOCK_PR, 'Unknown Team')).rejects.toThrow(
             'No GitHub Project configured for team "Unknown Team"',
         );
@@ -215,7 +231,8 @@ describe('assignPrToProjectSprint', () => {
         startDate.setDate(startDate.getDate() - 3); // started 3 days ago
 
         const mockOctokit = {
-            graphql: jest.fn()
+            graphql: vi
+                .fn()
                 // 1st call: getProjectNodeId
                 .mockResolvedValueOnce({ organization: { projectV2: { id: 'PROJECT_NODE_ID' } } })
                 // 2nd call: findCurrentSprintIteration
@@ -269,7 +286,8 @@ describe('assignPrToProjectSprint', () => {
 
     test('throws when no Sprint field exists in project', async () => {
         const mockOctokit = {
-            graphql: jest.fn()
+            graphql: vi
+                .fn()
                 .mockResolvedValueOnce({ organization: { projectV2: { id: 'PROJECT_NODE_ID' } } })
                 .mockResolvedValueOnce({
                     node: { fields: { nodes: [{ id: 'f1', name: 'Status' }] } },
@@ -286,7 +304,8 @@ describe('assignPrToProjectSprint', () => {
         pastStart.setDate(pastStart.getDate() - 30); // started 30 days ago, duration 14 → already ended
 
         const mockOctokit = {
-            graphql: jest.fn()
+            graphql: vi
+                .fn()
                 .mockResolvedValueOnce({ organization: { projectV2: { id: 'PROJECT_NODE_ID' } } })
                 .mockResolvedValueOnce({
                     node: {
@@ -328,7 +347,9 @@ describe('hasCrossRepoClosingReference', () => {
 
     test('detects cross-repo closing references in full URL format', () => {
         expect(hasCrossRepoClosingReference('Closes https://github.com/apify/apify-web/issues/5965')).toBe(true);
-        expect(hasCrossRepoClosingReference('fixes https://github.com/apify/apify-web/issues/1\r\nsome text')).toBe(true);
+        expect(hasCrossRepoClosingReference('fixes https://github.com/apify/apify-web/issues/1\r\nsome text')).toBe(
+            true,
+        );
     });
 
     test('does not match same-repo or unrelated references', () => {
@@ -345,29 +366,31 @@ describe('getGitHubLinkedIssues', () => {
 
     test('returns mapped issues from closingIssuesReferences', async () => {
         const mockOctokit = {
-            graphql: jest.fn().mockResolvedValueOnce({
+            graphql: vi.fn().mockResolvedValueOnce({
                 repository: {
                     pullRequest: {
                         closingIssuesReferences: {
-                            nodes: [{ id: 'I_node_1', number: 100, repository: { name: 'apify-core', databaseId: 12345 } }],
+                            nodes: [
+                                { id: 'I_node_1', number: 100, repository: { name: 'apify-core', databaseId: 12345 } },
+                            ],
                         },
                     },
                 },
             }),
         } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-        const result = await getGitHubLinkedIssues(mockOctokit, MOCK_PR);
+        const result = await getGitHubLinkedIssues(mockOctokit, MOCK_PR, mockCore);
         expect(result).toEqual([{ nodeId: 'I_node_1', number: 100, repoName: 'apify-core', repoGhId: 12345 }]);
     });
 
     test('returns empty array when no issues are linked', async () => {
         const mockOctokit = {
-            graphql: jest.fn().mockResolvedValueOnce({
+            graphql: vi.fn().mockResolvedValueOnce({
                 repository: { pullRequest: { closingIssuesReferences: { nodes: [] } } },
             }),
         } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-        const result = await getGitHubLinkedIssues(mockOctokit, MOCK_PR);
+        const result = await getGitHubLinkedIssues(mockOctokit, MOCK_PR, mockCore);
         expect(result).toEqual([]);
     });
 });
@@ -375,7 +398,7 @@ describe('getGitHubLinkedIssues', () => {
 describe('getGitHubProjectsEstimate', () => {
     test('returns numeric estimate when field is set', async () => {
         const mockOctokit = {
-            graphql: jest.fn().mockResolvedValueOnce({
+            graphql: vi.fn().mockResolvedValueOnce({
                 node: {
                     projectItems: {
                         nodes: [{ fieldValueByName: { number: 5 } }],
@@ -390,7 +413,7 @@ describe('getGitHubProjectsEstimate', () => {
 
     test('returns undefined when field is null (not set)', async () => {
         const mockOctokit = {
-            graphql: jest.fn().mockResolvedValueOnce({
+            graphql: vi.fn().mockResolvedValueOnce({
                 node: {
                     projectItems: {
                         nodes: [{ fieldValueByName: null }],
@@ -405,7 +428,7 @@ describe('getGitHubProjectsEstimate', () => {
 
     test('returns undefined when item is not in any project', async () => {
         const mockOctokit = {
-            graphql: jest.fn().mockResolvedValueOnce({
+            graphql: vi.fn().mockResolvedValueOnce({
                 node: { projectItems: { nodes: [] } },
             }),
         } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
