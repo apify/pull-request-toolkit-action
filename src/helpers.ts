@@ -2,7 +2,6 @@ import * as core from '@actions/core';
 import { type getOctokit } from '@actions/github';
 import { Context } from '@actions/github/lib/context.d';
 import { components } from '@octokit/openapi-types/types.d';
-import axios from 'axios';
 
 import {
     ORGANIZATION,
@@ -185,19 +184,25 @@ export async function addTeamLabel(context: Context, octokit: OctokitType, pullR
 }
 
 /**
- * Sends a query to ZenHub GraphQL API server using Axios client.
+ * Sends a query to ZenHub GraphQL API server using fetch.
  */
 async function queryZenhubGraphql(operationName: string, query: string, variables: object) {
     const zenhubToken = core.getInput('zenhub-token');
 
-    return axios({
-        method: 'post',
-        url: 'https://api.zenhub.com/public/graphql',
+    const response = await fetch('https://api.zenhub.com/public/graphql', {
+        method: 'POST',
         headers: {
             Authorization: `Bearer ${zenhubToken}`,
+            'Content-Type': 'application/json',
         },
-        data: { query, variables, operationName },
+        body: JSON.stringify({ query, variables, operationName }),
     });
+
+    if (!response.ok) {
+        throw new Error(`ZenHub GraphQL request failed with status ${response.status}: ${await response.text()}`);
+    }
+
+    return { data: (await response.json()) };
 }
 
 const ZENHUB_PR_DETAILS_QUERY = `
