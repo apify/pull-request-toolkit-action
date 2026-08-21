@@ -12,7 +12,7 @@ import {
     TESTED_LABEL_NAME,
     SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS,
     SKIP_ESTIMATES_FOR_TEAMS,
-} from './consts.js';
+} from './consts.ts';
 import {
     assignPrCreator,
     fillCurrentMilestone,
@@ -23,7 +23,7 @@ import {
     isPullRequestTested,
     isRepoIncludedInZenHubWorkspace,
     retry,
-} from './helpers.js';
+} from './helpers.ts';
 
 type Octokit = ReturnType<typeof getOctokitImport>;
 
