@@ -6,11 +6,12 @@
     "main": "lib/main.js",
     "scripts": {
         "build": "tsc",
-        "lint": "./node_modules/.bin/eslint ./src --ext .js,.jsx,.ts,.tsx ; tsc --noemit",
-        "lint:fix": "./node_modules/.bin/eslint ./src --ext .js,.jsx,.ts,.tsx --fix ; tsc --noemit",
+        "type-check": "tsc --noemit",
+        "lint": "./node_modules/.bin/eslint ./src --ext .js,.jsx,.ts,.tsx",
+        "lint:fix": "./node_modules/.bin/eslint ./src --ext .js,.jsx,.ts,.tsx --fix",
         "package": "ncc build --source-map",
         "test": "node_modules/jest/bin/jest.js",
-        "all": "npm run build && npm run lint && npm run test && npm run package"
+        "all": "npm run build && npm run lint && npm run type-check && npm run test && npm run package"
     },
     "keywords": [
         "actions",
