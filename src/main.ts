@@ -51,14 +51,14 @@ export async function main({
         if (!zenhubToken) throw new Error('Missing zenhub-token input!');
 
         // This skips the action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
-        // Do not use pull_request?.base but pull_request?.head because the former one does not container the forked repo name.
+        // Do not use pull_request?.base but pull_request?.head because the former one does not contain the forked repo name.
         if (!context.payload.pull_request?.head.repo.full_name.startsWith(`${ORGANIZATION}/`)) {
             core.warning(
                 `Skipping toolkit action for PR from external fork: ${context.payload.pull_request?.head.repo.full_name}`,
             );
             return;
         }
-        core.info('Pull request is from an apify organization, not from an external fork.');
+        core.info('Pull request is from an Apify organization, not from an external fork.');
 
         // Skip when PR is not into the default branch. We only want to run this on PRs to develop or main when develop is not used but we
         // don't want to run this on releases or PR chains.

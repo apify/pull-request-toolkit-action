@@ -11,7 +11,8 @@
         "lint": "oxlint .",
         "lint:fix": "oxlint . --fix",
         "test": "vitest run .",
-        "type-check": "tsc --noemit"
+        "type-check": "tsc --noemit",
+        "check-all": "pnpm format:check && pnpm lint && pnpm type-check && pnpm test"
     },
     "devDependencies": {
         "@actions/core": "^3.0.1",

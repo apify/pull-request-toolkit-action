@@ -1,13 +1,13 @@
 name: 'Apify PR toolkit'
-description: 'This action automates a couple of processes connected with a management of Github pull requests.'
+description: 'This action automates a couple of processes connected with the management of GitHub pull requests.'
 author: 'Apify'
 inputs:
     repo-token:
         required: true
-        description: 'Repository Github token'
+        description: 'Repository GitHub token'
     org-token:
         required: true
-        description: 'Github token with read and write access (required for GitHub Projects v2 sprint assignment)'
+        description: 'GitHub token with read and write access (required for GitHub Projects v2 sprint assignment)'
     zenhub-token:
         required: true
         description: 'ZenHub API token'

@@ -1,4 +1,4 @@
-# This runs the action againts itself to make sure it works as expected.
+# This runs the action against itself to make sure it works as expected.
 # This is not the workflow that needs to be used in the repositories that want to use this action.
 name: "[Testing] Apify PR toolkit"
 

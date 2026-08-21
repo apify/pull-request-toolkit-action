@@ -8,7 +8,7 @@ This action automates a couple of processes connected with the management of Git
 - Fills a missing milestone with a current milestone from Zenhub.
 - Assigns a team label (`t-[teamName]`) to the pull request.
 - Makes sure that:
-  - PR is either linked with epic or issue or labeled as `adhoc`
+  - PR is either linked with an epic or an issue or labeled as `adhoc`
   - PR itself or linked issue is estimated
 
 ## Action input
@@ -16,7 +16,7 @@ This action automates a couple of processes connected with the management of Git
 | Name           | Description                                        | Example        | Required |
 |----------------|----------------------------------------------------|----------------|----------|
 | `repo-token`   | Repository GitHub token                            | `github-token` | yes      |
-| `org-token`    | GitHub token with read only access to organization | `github-token` | yes      |
+| `org-token`    | GitHub token with read-only access to organization | `github-token` | yes      |
 | `zenhub-token` | ZenHub API token with access to Apify workspace    | `zenhub-token` | yes      |
 
 ## Example usage

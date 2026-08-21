@@ -112,7 +112,7 @@ export function findCurrentTeamMilestone(milestones: Milestone[], teamName: stri
 }
 
 /**
- * Configures PR assignee to be the same as PR creater.
+ * Configures PR assignee to be the same as PR creator.
  */
 export async function assignPrCreator(context: Context, octokit: OctokitType, pullRequest: PullRequest): Promise<void> {
     const assignees = pullRequest.assignees || [];
@@ -186,7 +186,7 @@ export async function addTeamLabel(
     });
 
     const isExistingLabel = labels.some((existingLabel: { name: string }) => existingLabel.name === teamLabelName);
-    if (!isExistingLabel) fail(pullRequest, `Team label "${teamLabelName}" of team ${teamName} does not exists!`);
+    if (!isExistingLabel) fail(pullRequest, `Team label "${teamLabelName}" of team ${teamName} does not exist!`);
 
     await octokit.rest.issues.addLabels({
         owner: context.repo.owner,
@@ -584,7 +584,7 @@ export async function ensureCorrectLinkingAndEstimates(
 
 /**
  * Adds a comment describing what is wrong with the pull request setup and then fails the action.
- * Comment is not send if isDryRun=true. Only error is thrown in such case.
+ * Comment is not sent if isDryRun=true. Only error is thrown in such case.
  */
 export function fail(pullRequest: PullRequest, errorMessage: string): never {
     if (!pullRequest.head.repo) throw new Error('Unknown repo!');
@@ -614,14 +614,14 @@ export function getLinkedIssue(timelineItems: ZenhubTimelineItem[]): ZenhubIssue
  * Processes a track record of ZenHub events for a PR and returns a list of epics that are currently linked to the PR.
  */
 export function getLinkedEpics(timelineItems: ZenhubTimelineItem[]): ZenhubIssue[] {
-    const connectEpicTimelintItems = timelineItems.filter((item) =>
+    const connectEpicTimelineItems = timelineItems.filter((item) =>
         ['issue.remove_issue_from_epic', 'issue.add_issue_to_epic'].includes(item.type),
     );
-    connectEpicTimelintItems.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    connectEpicTimelineItems.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     const connectedEpics: Map<number, ZenhubIssue> = new Map();
 
-    for (const { type, data } of connectEpicTimelintItems) {
+    for (const { type, data } of connectEpicTimelineItems) {
         const { issue } = data;
 
         if (type === 'issue.add_issue_to_epic') connectedEpics.set(issue.id, issue);
