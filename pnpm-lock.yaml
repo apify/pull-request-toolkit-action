@@ -216,9 +216,6 @@ importers:
       '@apify/oxlint-config':
         specifier: ^0.3.0
         version: 0.3.0(oxlint@1.79.0(oxlint-tsgolint@7.0.2001))
-      '@apify/tsconfig':
-        specifier: ^0.2.0
-        version: 0.2.0
       '@octokit/types':
         specifier: ^17.0.0
         version: 17.0.0
@@ -265,9 +262,6 @@ packages:
     resolution: {integrity: sha512-njNpYIfowurrM3+TDhhb/LLADAPzozs9+hTTMB/OiRAKrUHOqF6KIsUCYI8IGZAB1hl9vXQnFmKQzTysbAJ7mA==, tarball: https://registry.npmjs.org/@apify/oxlint-config/-/oxlint-config-0.3.0.tgz}
     peerDependencies:
       oxlint: ^1.61.0
-
-  '@apify/tsconfig@0.2.0':
-    resolution: {integrity: sha512-0i6rF+hgXw6mQXhENYNTnP+Yo4WY38d698k/pk4rIpdCx/sSuEprR2N5WdtMaN628vCB+aZjff0jPN2EnQYtjQ==, tarball: https://registry.npmjs.org/@apify/tsconfig/-/tsconfig-0.2.0.tgz}
 
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==, tarball: https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz}
@@ -1220,8 +1214,6 @@ snapshots:
   '@apify/oxlint-config@0.3.0(oxlint@1.79.0(oxlint-tsgolint@7.0.2001))':
     dependencies:
       oxlint: 1.79.0(oxlint-tsgolint@7.0.2001)
-
-  '@apify/tsconfig@0.2.0': {}
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 

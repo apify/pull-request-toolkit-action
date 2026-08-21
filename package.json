@@ -18,7 +18,6 @@
         "@actions/core": "^3.0.1",
         "@actions/github": "^9.1.1",
         "@apify/oxlint-config": "^0.3.0",
-        "@apify/tsconfig": "^0.2.0",
         "@octokit/types": "^17.0.0",
         "@types/node": "^24.13.3",
         "oxfmt": "^0.64.0",
