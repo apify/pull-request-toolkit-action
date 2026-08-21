@@ -1,13 +1,13 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "commonjs",
-    "outDir": "./lib",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "lib": []
-  },
-  "include": ["."],
-  "exclude": ["node_modules"]
+    "compilerOptions": {
+        "module": "nodenext",
+        "target": "esnext",
+        "moduleResolution": "nodenext",
+        "skipLibCheck": true,
+        "types": ["node"],
+        "strict": true,
+        "noEmit": true,
+        "allowImportingTsExtensions": true,
+        "erasableSyntaxOnly": true,
+    },
 }

@@ -2,30 +2,24 @@
 
 This action automates a couple of processes connected with the management of GitHub pull requests.
 
-# What it does
+## What it does
 
 - Assigns PR to its creator.
 - Fills a missing milestone with a current milestone from Zenhub.
 - Assigns a team label (`t-[teamName]`) to the pull request.
 - Makes sure that:
-  - PR is either linked with epic or issue or labeled as `adhoc`
+  - PR is either linked with an epic or an issue or labeled as `adhoc`
   - PR itself or linked issue is estimated
 
-## Wishlist / TODOs
-
-- GitHub action for publishing of a new version.
-- GitHub action for lint and tests execution.
-- Use Docker image with runtime typescript compilation instead of committing a dist directory.
-
-# Action input
+## Action input
 
 | Name           | Description                                        | Example        | Required |
 |----------------|----------------------------------------------------|----------------|----------|
 | `repo-token`   | Repository GitHub token                            | `github-token` | yes      |
-| `org-token`    | GitHub token with read only access to organization | `github-token` | yes      |
-| `zenhub-token` | GitHub token with read only access to organization | `zenhub-token` | yes      |
+| `org-token`    | GitHub token with read-only access to organization | `github-token` | yes      |
+| `zenhub-token` | ZenHub API token with access to Apify workspace    | `zenhub-token` | yes      |
 
-# Example usage
+## Example usage
 
 ```yaml
 name: Apify PR toolkit
@@ -54,10 +48,8 @@ jobs:
           zenhub-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_ZENHUB_TOKEN }}
 ```
 
-# Contribution
+## How to release new version
 
-1. Update code in `./src`
-2. Run `npm i`
-3. Run `npm run all`
-4. Commit all changes including `./dist` folder with built code.
-5. Publish a new version of an action using the new release (It needs to be done manually)
+1. Create a PR. **IMPORTANT: Avoid using the `chore:` prefix, as it doesn't work with RELEASE-PLEASE. Use `feat:` or `fix:` instead.**
+2. Merge PR into the main branch after approval. This triggers an automated workflow that generates a new PR for the release using the RELEASE-PLEASE action.
+3. Navigate to the PR and merge it into the main branch. This will publish the release with an updated changelog.

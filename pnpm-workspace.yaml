@@ -1,0 +1,29 @@
+blockExoticSubdeps: true
+
+# GitHub Packages serves tarballs from /download/<scope>/<name>/<ver>/<sha>, not the
+# /-/<name>-<ver>.tgz path that pnpm infers when only the integrity hash is in the lockfile.
+# Recording the exact tarball URL pnpm got from the registry keeps cold-store CI installs
+# from 404'ing on @apify-packages tarballs.
+lockfileIncludeTarballUrl: true
+
+# Supply chain hardening
+minimumReleaseAge: 1440 # 24 hours
+# Exclude our own packages from the minimum release age requirement,
+# since we publish them ourselves and can be reasonably sure they aren't malicious.
+minimumReleaseAgeExclude:
+  - "@apify/*"
+  - "@apify-packages/*"
+  - "@crawlee/*"
+  - apify
+  - apify-client
+  - crawlee
+
+# pnpm 11 default is `true`, which makes `pnpm install` exit 1 whenever a transitive package
+# has a build script that isn't on the allowlist below. That would break `pnpm install
+# --frozen-lockfile` in CI for *every* package bump that brings in a new build-script-having
+# transitive. We still get the security benefit (only allowlisted packages run scripts); we
+# just don't fail the install on the warning.
+strictDepBuilds: false
+
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 43200 # 30 days
