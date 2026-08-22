@@ -43,12 +43,10 @@ export async function main({
     env: Record<string, string | undefined>;
 }) {
     try {
+        // Octokit configured with repository token - this can be used to modify pull-request.
         const repoToken = env.GITHUB_REPO_TOKEN;
-        const orgToken = env.GITHUB_ORG_TOKEN;
-        const zenhubToken = env.ZENHUB_TOKEN;
         if (!repoToken) throw new Error('Missing repo-token input!');
-        if (!orgToken) throw new Error('Missing org-token input!');
-        if (!zenhubToken) throw new Error('Missing zenhub-token input!');
+        const repoOctokit = getOctokit(repoToken);
 
         // This skips the action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
         // Do not use pull_request?.base but pull_request?.head because the former one does not contain the forked repo name.
@@ -71,9 +69,6 @@ export async function main({
             return;
         }
         core.info(`Pull request is into the default branch "${defaultBranch}".`);
-
-        // Octokit configured with repository token - this can be used to modify pull-request.
-        const repoOctokit = getOctokit(repoToken);
 
         const pullRequestContext = context.payload.pull_request;
         if (!pullRequestContext) throw new Error('Action works only for PRs!');
@@ -105,6 +100,9 @@ export async function main({
         }
 
         // Organization token providing read-only access to the organization.
+        // Lazy-initialized because it is not present for PRs from forks, which we exclude at the top of the function.
+        const orgToken = env.GITHUB_ORG_TOKEN;
+        if (!orgToken) throw new Error('Missing org-token input!');
         const orgOctokit = getOctokit(orgToken);
 
         // Skip the PR if not a member of one of the product teams.
@@ -114,6 +112,9 @@ export async function main({
             return;
         }
         core.info(`User ${user} belongs to a ${teamName} team.`);
+
+        const zenhubToken = env.ZENHUB_TOKEN;
+        if (!zenhubToken) throw new Error('Missing zenhub-token input!');
 
         // Skip if the repository is not connected to the ZenHub workspace.
         const belongsToZenhub = await isRepoIncludedInZenHubWorkspace(pullRequest.base.repo.name, zenhubToken);
