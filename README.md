@@ -5,51 +5,37 @@ This action automates a couple of processes connected with the management of Git
 ## What it does
 
 - Assigns PR to its creator.
-- Fills a missing milestone with a current milestone from Zenhub.
-- Assigns a team label (`t-[teamName]`) to the pull request.
+- Adds a `tested` label if the PR changes any test files.
+- Assigns a team label (`t-[teamName]`) to the pull request if not present.
+- Assigns the pull request to the project board of the team that the PR creator belongs to.
+- Assigns the pull request to the current sprint of that board if the team uses sprints.
 - Makes sure that:
   - PR is either linked with an epic or an issue or labeled as `adhoc`
   - PR itself or linked issue is estimated
 
+The linkage and estimation checks are retried every 15 seconds for 2 minutes so that the user can set them up after the PR is created without this action failing.
+
+The action skips pull requests that come from external forks, that do not target the repository's default branch, or whose creator is not a member of any Product Engineering team. Teams listed in `SKIP_LINKING_AND_ESTIMATE_CHECKS_FOR_TEAMS` in [`src/consts.ts`](src/consts.ts) are exempt from the linking and estimate checks.
+
 ## Action input
 
-| Name           | Description                                        | Example        | Required |
-|----------------|----------------------------------------------------|----------------|----------|
-| `repo-token`   | Repository GitHub token                            | `github-token` | yes      |
-| `org-token`    | GitHub token with read-only access to organization | `github-token` | yes      |
-| `zenhub-token` | ZenHub API token with access to Apify workspace    | `zenhub-token` | yes      |
+| Name           | Description                              | Example        | Required |
+|----------------|------------------------------------------|----------------|----------|
+| `org-token`    | GitHub token with access to organization | `github-token` | yes      |
 
-## Example usage
+## How to enable for a repository
 
-```yaml
-name: Apify PR toolkit
+**!!! Do not call this action directly !!!**
 
-on:
-  pull_request:
-    branches:
-      - develop
-
-jobs:
-  apify-pr-toolkit:
-    runs-on: ubuntu-20.04
-    steps:
-      - name: clone pull-request-toolkit-action
-        uses: actions/checkout@v2
-        with:
-          repository: apify/pull-request-toolkit-action
-          ref: refs/tags/v1.0.1
-          path: ./.github/actions/pull-request-toolkit-action
-
-      - name: run pull-request-toolkit action
-        uses: ./.github/actions/pull-request-toolkit-action
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          org-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_GITHUB_TOKEN }}
-          zenhub-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_ZENHUB_TOKEN }}
-```
+Set the `pull_request_toolkit_required` custom repository property to `Yes` in the target repository settings.
+The action will be automatically triggered for all pull requests on that repository through a repository ruleset.
 
 ## How to release new version
 
 1. Create a PR. **IMPORTANT: Avoid using the `chore:` prefix, as it doesn't work with RELEASE-PLEASE. Use `feat:` or `fix:` instead.**
 2. Merge PR into the main branch after approval. This triggers an automated workflow that generates a new PR for the release using the RELEASE-PLEASE action.
 3. Navigate to the PR and merge it into the main branch. This will publish the release with an updated changelog.
+
+## Future improvements
+
+- move into a monorepo with `github-webhooks`, `apif`, `kanban-toolkit`, and maybe others

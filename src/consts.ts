@@ -1,40 +1,38 @@
-export const ORGANIZATION = 'apify';
-
-export const PARENT_TEAM_SLUG = 'product-engineering';
-
-export const ZENHUB_WORKSPACE_ID = '5f6454160d9f82000fa6733f';
-
-export const ZENHUB_WORKSPACE_NAME = 'Platform Team';
+export const PRODUCT_ENGINEERING_TEAM_SLUG = 'product-engineering';
 
 export const TEAM_LABEL_PREFIX = 't-';
 
 export const TEAM_NAME_TO_LABEL: { [name: string]: string } = {
-    'Cash & Community': 't-c&c',
     Infrastructure: 't-infra',
 };
+export const TESTED_LABEL_NAME = 'tested';
+
+export const FIELD_NAMES = {
+    ESTIMATE: 'Estimate',
+    SPRINT: 'Sprint',
+    STATUS: 'Status',
+} as const;
+
+export const STATUS_FIELD_VALUES = {
+    NEW_ISSUES: 'New Issues',
+    ICEBOX: 'Icebox',
+    PRE_BACKLOG: 'Pre-Backlog',
+    BACKLOG: 'Backlog',
+    IN_PROGRESS: 'In Progress',
+    PULL_REQUEST: 'Pull Request',
+    CLOSED: 'Closed',
+} as const;
+
+export const KNOWN_BOT_USERS: readonly string[] = [
+    'apify-service-account',
+    'github-actions[bot]',
+    'dependabot[bot]',
+    'renovate[bot]',
+    'copilot',
+];
+
+// Excludes the team from correct linking and estimate checks.
+export const SKIP_LINKING_AND_ESTIMATE_CHECKS_FOR_TEAMS: readonly string[] = ['Docs'];
 
 export const LINKING_CHECK_RETRIES = 8;
 export const LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
-
-export const TEAMS_NOT_USING_ZENHUB = ['put-some-team-here', 'Service Account', 'Security'];
-
-// Excludes the team from the milestone, correct linking and estimate checks.
-export const SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs', 'Service Account', 'AI'];
-
-// Excludes the team from the correct linking and estimate checks only (milestones are still assigned).
-export const SKIP_ESTIMATES_FOR_TEAMS = ['Tooling'];
-
-export const TESTED_LABEL_NAME = 'tested';
-
-// Map of team name → GitHub Project number (the number visible in the project URL:
-// github.com/orgs/apify/projects/<number>).
-// Only teams listed here will have their PRs added to a GitHub Project board and assigned to the current Sprint.
-export const TEAM_TO_PROJECT_NUMBER: Record<string, number> = {
-    Integrations: 54,
-};
-
-// The exact name of the iteration field in the GitHub Project board.
-export const SPRINT_FIELD_NAME = 'Sprint';
-
-// The exact name of the number field used for estimates in GitHub Project boards.
-export const ESTIMATE_FIELD_NAME = 'Estimate';
