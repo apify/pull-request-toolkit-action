@@ -1,4 +1,3 @@
-import { ApifyPullRequestToolkit } from './apify_pull_request_toolkit.ts';
 import {
     LINKING_CHECK_RETRIES,
     LINKING_CHECK_DELAY_MILLIS,
@@ -7,6 +6,7 @@ import {
 } from './consts.ts';
 import { UserError } from './errors.ts';
 import { GitHubModel } from './github_model.ts';
+import { PullRequestToolkit } from './pull_request_toolkit.ts';
 import type { Core, Context, GetOctokitFunction } from './types.ts';
 
 export async function main({
@@ -38,7 +38,7 @@ export async function main({
         const orgOctokit = getOctokit(input['org-token']);
 
         const githubModel = new GitHubModel(orgOctokit);
-        const apifyPullRequestToolkit = new ApifyPullRequestToolkit(
+        const apifyPullRequestToolkit = new PullRequestToolkit(
             githubModel,
             core,
             pullRequestFromContext.base.repo.owner.login,

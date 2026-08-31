@@ -25,7 +25,7 @@ import type {
  * All methods are idempotent.
  * Does not call GitHub directly, but through `GitHubModel`.
  */
-export class ApifyPullRequestToolkit {
+export class PullRequestToolkit {
     private githubModel: GitHubModel;
     private core: Core;
 
