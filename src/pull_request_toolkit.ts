@@ -1,11 +1,11 @@
 /* oxlint-disable no-console */
 import {
-    FIELD_NAMES,
+    PROJECT_FIELD_NAMES,
     KNOWN_BOT_USERS,
+    LABELS,
     PRODUCT_ENGINEERING_TEAM_SLUG,
     TEAM_LABEL_PREFIX,
     TEAM_NAME_TO_LABEL,
-    TESTED_LABEL_NAME,
 } from './consts.ts';
 import { UserError } from './errors.ts';
 import type { GitHubModel } from './github_model.ts';
@@ -163,9 +163,9 @@ export class PullRequestToolkit {
      */
     public async getStatusFieldForProject(projectNumber: number): Promise<SingleSelectField | undefined> {
         const fields = await this.githubModel.getProjectFields(this.pullRequestRepoOwner, projectNumber);
-        return fields.find((field) => field.name === FIELD_NAMES.STATUS && field.data_type === 'single_select') as
-            | SingleSelectField
-            | undefined;
+        return fields.find(
+            (field) => field.name === PROJECT_FIELD_NAMES.STATUS && field.data_type === 'single_select',
+        ) as SingleSelectField | undefined;
     }
 
     /**
@@ -197,7 +197,7 @@ export class PullRequestToolkit {
      */
     public async getSprintFieldForProject(projectNumber: number): Promise<IterationField | undefined> {
         const fields = await this.githubModel.getProjectFields(this.pullRequestRepoOwner, projectNumber);
-        return fields.find((field) => field.name === FIELD_NAMES.SPRINT && field.data_type === 'iteration') as
+        return fields.find((field) => field.name === PROJECT_FIELD_NAMES.SPRINT && field.data_type === 'iteration') as
             | IterationField
             | undefined;
     }
@@ -386,7 +386,9 @@ export class PullRequestToolkit {
      */
     private async getEstimatesInProjectItems(projectItemId: string) {
         const fieldValues = await this.githubModel.getProjectItemFieldValues(projectItemId);
-        const estimate = fieldValues[FIELD_NAMES.ESTIMATE] as Extract<FieldValue, { dataType: 'NUMBER' }> | undefined;
+        const estimate = fieldValues[PROJECT_FIELD_NAMES.ESTIMATE] as
+            | Extract<FieldValue, { dataType: 'NUMBER' }>
+            | undefined;
         if (estimate) {
             return estimate.value;
         }
@@ -431,7 +433,8 @@ export class PullRequestToolkit {
         );
         const linkedIssues = await this.getLinkedAndParentIssues();
         const isLinkedOrAdhoc =
-            linkedIssues.length > 0 || pullRequest.labels.some((label: { name: string }) => label.name === 'adhoc');
+            linkedIssues.length > 0 ||
+            pullRequest.labels.some((label: { name: string }) => label.name === LABELS.ADHOC);
         const isEstimated = await this.isPullRequestOrLinkedIssuesEstimated(linkedIssues);
 
         return { isLinkedOrAdhoc, isEstimated };
@@ -458,16 +461,16 @@ export class PullRequestToolkit {
     public async markAsTested() {
         const repoLabels = await this.githubModel.getLabelsForRepo(this.pullRequestRepoOwner, this.pullRequestRepoName);
 
-        if (!repoLabels.includes(TESTED_LABEL_NAME))
+        if (!repoLabels.includes(LABELS.TESTED))
             throw new UserError(
-                `Label "${TESTED_LABEL_NAME}" does not exist on repository ${this.pullRequestRepoOwner}/${this.pullRequestRepoName}. Please create it first.`,
+                `Label "${LABELS.TESTED}" does not exist on repository ${this.pullRequestRepoOwner}/${this.pullRequestRepoName}. Please create it first.`,
             );
 
         await this.githubModel.addLabelToIssueOrPullRequest(
             this.pullRequestRepoOwner,
             this.pullRequestRepoName,
             this.pullRequestNumber,
-            TESTED_LABEL_NAME,
+            LABELS.TESTED,
         );
     }
 }

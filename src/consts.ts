@@ -1,13 +1,16 @@
 export const PRODUCT_ENGINEERING_TEAM_SLUG = 'product-engineering';
 
+export const LABELS = {
+    ADHOC: 'adhoc',
+    TESTED: 'tested',
+} as const;
+
 export const TEAM_LABEL_PREFIX = 't-';
 
 export const TEAM_NAME_TO_LABEL: { [name: string]: string } = {
     Infrastructure: 't-infra',
 };
-export const TESTED_LABEL_NAME = 'tested';
-
-export const FIELD_NAMES = {
+export const PROJECT_FIELD_NAMES = {
     ESTIMATE: 'Estimate',
     SPRINT: 'Sprint',
     STATUS: 'Status',
