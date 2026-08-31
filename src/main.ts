@@ -178,6 +178,8 @@ export async function main({
             return;
         }
 
+        // This check is retried a few times because linking/estimating an issue is often done by the author right after opening the PR,
+        // so the data may not be there yet on the first check.
         core.info(
             `Checking if PR is linked to a GitHub issue, or is adhoc, and if it or its linked issues have an estimate.`,
         );

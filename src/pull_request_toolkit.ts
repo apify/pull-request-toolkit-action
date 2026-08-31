@@ -350,6 +350,8 @@ export class PullRequestToolkit {
 
     /**
      * Parses the pull request body for issue-closing references (e.g., "fixes #123") and returns the referenced issues.
+     * This is a fallback/addition to `getNativelyLinkedIssuesForPullRequest`, since GitHub's own detection of such
+     * references is not always reliable (e.g. references added by editing the body after PR creation).
      */
     private async getIssuesMentionedInPullRequestBody() {
         const pullRequest = await this.githubModel.getPullRequest(
