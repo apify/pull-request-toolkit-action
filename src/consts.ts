@@ -19,7 +19,7 @@ export const LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
 export const TEAMS_NOT_USING_ZENHUB = ['put-some-team-here', 'Service Account', 'Security'];
 
 // Excludes the team from the milestone, correct linking and estimate checks.
-export const SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs', 'Service Account', 'AI'];
+export const SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs', 'Service Account'];
 
 // Excludes the team from the correct linking and estimate checks only (milestones are still assigned).
 export const SKIP_ESTIMATES_FOR_TEAMS = ['Tooling'];
