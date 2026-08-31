@@ -134,17 +134,23 @@ export class GitHubModel {
      * Fetches the parent issue of the given issue, if any.
      */
     public async getParentIssue(owner: string, repo: string, number: number) {
-        const response = await this.octokit.rest.issues.getParent({
-            owner,
-            repo,
-            issue_number: number,
-        });
-        if (!response.data) return null;
-        return {
-            owner: response.data.repository!.owner.login,
-            repo: response.data.repository!.name,
-            number: response.data.number,
-        };
+        try {
+            const response = await this.octokit.rest.issues.getParent({
+                owner,
+                repo,
+                issue_number: number,
+            });
+            if (!response.data) return null;
+            return {
+                owner: response.data.repository!.owner.login,
+                repo: response.data.repository!.name,
+                number: response.data.number,
+            };
+        } catch (error) {
+            // GitHub returns 404 when the issue has no parent.
+            if (error && typeof error === 'object' && 'status' in error && error.status === 404) return null;
+            throw error;
+        }
     }
 
     /**

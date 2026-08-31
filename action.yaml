@@ -1,4 +1,4 @@
-name: 'Apify PR toolkit'
+name: 'Apify Pull Request Toolkit'
 description: 'This action automates a couple of processes connected with the management of GitHub pull requests.'
 author: 'Apify'
 inputs:
@@ -8,7 +8,7 @@ inputs:
 runs:
     using: 'composite'
     steps:
-        - name: 'Apify PR toolkit'
+        - name: 'Apify Pull Request Toolkit'
           uses: actions/github-script@v9
           env:
             GITHUB_ORG_TOKEN: ${{ inputs.org-token }}
