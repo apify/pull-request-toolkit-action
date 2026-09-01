@@ -24,6 +24,9 @@ export const SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS = ['Docs', 'Service Account
 // Excludes the team from the correct linking and estimate checks only (milestones are still assigned).
 export const SKIP_ESTIMATES_FOR_TEAMS = ['Tooling'];
 
+// Excludes the team from the milestone check only (correct linking and estimate checks are still performed).
+export const SKIP_MILESTONES_FOR_TEAMS = ['AI'];
+
 export const TESTED_LABEL_NAME = 'tested';
 
 // Map of team name → GitHub Project number (the number visible in the project URL:

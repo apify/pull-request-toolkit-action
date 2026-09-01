@@ -10,6 +10,7 @@ import {
     TEAM_TO_PROJECT_NUMBER,
     ORGANIZATION,
     TESTED_LABEL_NAME,
+    SKIP_MILESTONES_FOR_TEAMS,
     SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS,
     SKIP_ESTIMATES_FOR_TEAMS,
 } from './consts.ts';
@@ -147,7 +148,11 @@ export async function main({
         }
 
         // 2. Assigns current milestone if not already assigned.
-        if (!pullRequest.milestone && !SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
+        if (
+            !pullRequest.milestone &&
+            !SKIP_MILESTONES_FOR_TEAMS.includes(teamName) &&
+            !SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)
+        ) {
             const milestoneTitle = await fillCurrentMilestone(context, repoOctokit, pullRequest, teamName);
             core.info(`Milestone successfully filled with ${milestoneTitle}.`);
         } else {
