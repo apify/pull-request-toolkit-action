@@ -1,229 +1,218 @@
-import type * as Core from '@actions/core';
-import type { context as Context, getOctokit as getOctokitImport } from '@actions/github';
-import type { GetResponseDataTypeFromEndpointMethod } from '@octokit/types';
-
 import {
-    TEAM_LABEL_PREFIX,
     LINKING_CHECK_RETRIES,
     LINKING_CHECK_DELAY_MILLIS,
-    TEAMS_NOT_USING_ZENHUB,
-    TEAM_TO_PROJECT_NUMBER,
-    ORGANIZATION,
-    TESTED_LABEL_NAME,
-    SKIP_MILESTONES_FOR_TEAMS,
-    SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS,
-    SKIP_ESTIMATES_FOR_TEAMS,
+    SKIP_LINKING_AND_ESTIMATE_CHECKS_FOR_TEAMS,
+    STATUS_FIELD_VALUES,
 } from './consts.ts';
-import {
-    assignPrCreator,
-    fillCurrentMilestone,
-    findUsersTeamName,
-    addTeamLabel,
-    assignPrToProjectSprint,
-    ensureCorrectLinkingAndEstimates,
-    isPullRequestTested,
-    isRepoIncludedInZenHubWorkspace,
-    retry,
-} from './helpers.ts';
-
-type Octokit = ReturnType<typeof getOctokitImport>;
-
-type PullRequest = GetResponseDataTypeFromEndpointMethod<Octokit['rest']['pulls']['get']>;
-type Assignee = NonNullable<PullRequest['assignees']>[number];
-type Label = NonNullable<PullRequest['labels']>[number];
+import { UserError } from './errors.ts';
+import { GitHubModel } from './github_model.ts';
+import { PullRequestToolkit } from './pull_request_toolkit.ts';
+import type { Core, Context, GetOctokitFunction } from './types.ts';
 
 export async function main({
     getOctokit,
     context,
     core,
-    env,
+    input,
 }: {
-    getOctokit: typeof getOctokitImport;
-    context: typeof Context;
-    core: typeof Core;
-    env: Record<string, string | undefined>;
+    getOctokit: GetOctokitFunction;
+    context: Context;
+    core: Core;
+    input: { 'org-token'?: string };
 }) {
     try {
-        // Octokit configured with repository token - this can be used to modify pull-request.
-        const repoToken = env.GITHUB_REPO_TOKEN;
-        if (!repoToken) throw new Error('Missing repo-token input!');
-        const repoOctokit = getOctokit(repoToken);
+        const pullRequestFromContext = context.payload.pull_request;
+        if (!pullRequestFromContext) throw new UserError('This action works only for pull requests!');
 
-        // This skips the action when run on a PR from external fork, i.e., when the fork is not a part of the organization.
-        // Do not use pull_request?.base but pull_request?.head because the former one does not contain the forked repo name.
-        if (!context.payload.pull_request?.head.repo.full_name.startsWith(`${ORGANIZATION}/`)) {
-            core.warning(
-                `Skipping toolkit action for PR from external fork: ${context.payload.pull_request?.head.repo.full_name}`,
+        if (pullRequestFromContext.head.repo.full_name !== pullRequestFromContext.base.repo.full_name) {
+            core.info(
+                `Skipping toolkit action for pull request from external fork: ${pullRequestFromContext.head.repo.full_name}`,
             );
             return;
         }
         core.info('Pull request is from an Apify organization, not from an external fork.');
 
-        // Skip when PR is not into the default branch. We only want to run this on PRs to develop or main when develop is not used but we
-        // don't want to run this on releases or PR chains.
-        const defaultBranch = context.payload.pull_request.head.repo.default_branch;
-        const targetBranch = context.payload.pull_request.base.ref;
-        if (defaultBranch !== targetBranch) {
-            core.info(
-                `Skipping toolkit action for PR not into the default branch "${defaultBranch}" but "${targetBranch}" instead.`,
-            );
+        // This secret is not provided for pull requests from forks, but we have skipped those already.
+        // If it is missing at this point, the action is misconfigured and we should fail.
+        if (!input['org-token']) throw new Error('Missing org-token input!');
+        const orgOctokit = getOctokit(input['org-token']);
+
+        const githubModel = new GitHubModel(orgOctokit);
+        const pullRequestToolkit = new PullRequestToolkit(
+            githubModel,
+            core,
+            pullRequestFromContext.base.repo.owner.login,
+            pullRequestFromContext.base.repo.name,
+            pullRequestFromContext.number,
+        );
+
+        // In practice, this should never happen, because the action is only triggered for repositories
+        // which have `pull_request_toolkit_required` set to true in the repo settings,
+        // but theoretically someone could trigger the action manually for a repo which doesn't have it set,
+        // so we check the enablement anyway.
+        if (!(await pullRequestToolkit.isPullRequestToolkitRequiredForRepo())) {
+            core.info('Pull request toolkit is not required for this repository. Skipping.');
             return;
         }
-        core.info(`Pull request is into the default branch "${defaultBranch}".`);
+        core.info('Pull request toolkit is required for this repository. Proceeding.');
 
-        const pullRequestContext = context.payload.pull_request;
-        if (!pullRequestContext) throw new Error('Action works only for PRs!');
-
-        const { data: pullRequest } = await repoOctokit.rest.pulls.get({
-            owner: pullRequestContext.base.repo.owner.login,
-            repo: pullRequestContext.base.repo.name,
-            pull_number: pullRequestContext.number,
-        });
-
-        let user = pullRequestContext.user.login;
-        if (user.toLowerCase() === 'dependabot[bot]') {
-            core.info(`Skipping toolkit action for a PR from Dependabot.`);
+        if (await pullRequestToolkit.isDraft()) {
+            core.info('Pull request is a draft. Skipping toolkit action.');
             return;
         }
-        if (user.toLowerCase() === 'copilot') {
-            // copilot assigns the user who initiated the PR, let's use that
-            const otherAssignees = pullRequest.assignees?.filter(
-                (assignee) => assignee.login.toLowerCase() !== 'copilot',
-            );
-            if (otherAssignees?.length !== 1) {
-                core.warning(
-                    "PR created by Copilot, and there isn't exactly one other assignee -> cannot determine user. Skipping toolkit action.",
-                );
-                return;
-            }
-            user = otherAssignees[0].login;
-            core.info(`PR created by Copilot on behalf of ${user}, proceeding.`);
+        core.info('Pull request is not a draft.');
+
+        // Skip when the pull request is not into the default branch. We don't want to run this on releases or pull request chains.
+        if (!(await pullRequestToolkit.isToDefaultBranch())) {
+            core.info(`Skipping toolkit action for pull request not into the default branch.`);
+            return;
+        }
+        core.info(`Pull request is into the default branch.`);
+
+        const pullRequestHumanCreator = await pullRequestToolkit.getHumanCreator();
+        if (!pullRequestHumanCreator) {
+            core.info('Pull request creator is a bot and no human is assigned. Skipping toolkit action.');
+            return;
         }
 
-        // Organization token providing read-only access to the organization.
-        // Lazy-initialized because it is not present for PRs from forks, which we exclude at the top of the function.
-        const orgToken = env.GITHUB_ORG_TOKEN;
-        if (!orgToken) throw new Error('Missing org-token input!');
-        const orgOctokit = getOctokit(orgToken);
-
-        // Skip the PR if not a member of one of the product teams.
-        const teamName = await findUsersTeamName(orgOctokit, user);
+        const teamName = await pullRequestToolkit.findUsersProductEngineeringChildTeamName(pullRequestHumanCreator);
         if (!teamName) {
-            core.warning(`User ${user} is not a member of team. Skipping toolkit action.`);
-            return;
-        }
-        core.info(`User ${user} belongs to a ${teamName} team.`);
-
-        const zenhubToken = env.ZENHUB_TOKEN;
-        if (!zenhubToken) throw new Error('Missing zenhub-token input!');
-
-        // Skip if the repository is not connected to the ZenHub workspace.
-        const belongsToZenhub = await isRepoIncludedInZenHubWorkspace(pullRequest.base.repo.name, zenhubToken);
-        if (!belongsToZenhub) {
-            core.warning(
-                `Repository ${pullRequest.base.repo.name} is not included in ZenHub workspace. Skipping toolkit action.`,
+            core.info(
+                `User ${pullRequestHumanCreator} is not a member of any Product Engineering team. Skipping toolkit action.`,
             );
             return;
         }
-        core.info(`Repository ${pullRequest.base.repo.name} is included in ZenHub workspace.`);
+        core.info(`User ${pullRequestHumanCreator} belongs to ${teamName} team.`);
 
-        // Skip if the team is listed in TEAMS_NOT_USING_ZENHUB.
-        const isTeamUsingZenhub = !TEAMS_NOT_USING_ZENHUB.includes(teamName);
-        if (!isTeamUsingZenhub) {
-            core.info(`Team ${teamName} is listed in TEAMS_NOT_USING_ZENHUB. Skipping toolkit action.`);
-            return;
-        }
-        core.info(`Team ${teamName} uses a ZenHub.`);
-
-        // All these 4 actions below are idempotent, so they can be run on every PR update.
-        // Also, these actions do not require any action from a PR author.
-
-        // 1. Assigns PR creator if not already assigned.
-        const isCreatorAssigned = pullRequest.assignees?.find((u: Assignee) => u?.login === user);
-        if (!isCreatorAssigned) {
-            await assignPrCreator(context, repoOctokit, pullRequest);
-            core.info('Creator successfully assigned.');
+        // Checks if the pull request is tested and adds a `tested` label if so.
+        const isTested = await pullRequestToolkit.isTested();
+        if (isTested) {
+            await pullRequestToolkit.markAsTested();
+            core.info('Marked pull request as tested.');
         } else {
-            core.info('Creator already assigned.');
+            core.info('Pull request is not tested.');
         }
 
-        // 2. Assigns current milestone if not already assigned.
-        if (
-            !pullRequest.milestone &&
-            !SKIP_MILESTONES_FOR_TEAMS.includes(teamName) &&
-            !SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)
-        ) {
-            const milestoneTitle = await fillCurrentMilestone(context, repoOctokit, pullRequest, teamName);
-            core.info(`Milestone successfully filled with ${milestoneTitle}.`);
-        } else {
-            core.info('Milestone already assigned or team is skipped.');
-        }
+        // Assigns the pull request creator.
+        await pullRequestToolkit.assignCreator(pullRequestHumanCreator);
+        core.info(`Assigned pull request creator ${pullRequestHumanCreator} to the pull request.`);
 
-        // 3. Adds team label if not already there.
-        const teamLabel = pullRequest.labels.find((label: Label) => label.name.startsWith(TEAM_LABEL_PREFIX));
-        if (!teamLabel) {
-            await addTeamLabel(context, repoOctokit, pullRequest, teamName);
+        // Adds team label if not already there.
+        const teamLabelsOnPullRequest = await pullRequestToolkit.getTeamLabels();
+        if (!teamLabelsOnPullRequest.length) {
+            await pullRequestToolkit.addTeamLabel(teamName);
             core.info(`Team label for team ${teamName} successfully added`);
         } else {
-            core.info(`Team label ${teamLabel.name} already present`);
+            core.info(`Team labels already present on pull request: ${teamLabelsOnPullRequest.join(', ')}`);
         }
 
-        // 4. Checks if PR is tested and adds a `tested` label if so.
-        const isTested = await isPullRequestTested(repoOctokit, pullRequest);
-        if (isTested) {
-            core.info('PR is tested.');
-            await repoOctokit.rest.issues.addLabels({
-                owner: ORGANIZATION,
-                repo: pullRequest.base.repo.name,
-                issue_number: pullRequest.number,
-                labels: [TESTED_LABEL_NAME],
-            });
-            core.info(`Label ${TESTED_LABEL_NAME} successfully added`);
-        } else {
-            core.info('PR is not tested.');
-        }
+        // Adds the pull request to the team project if it exists,
+        // sets the status field to "Pull Request",
+        // and assigns it to the current sprint if the project has a sprint field.
+        const project = await pullRequestToolkit.findProjectForTeam(teamName);
+        if (project) {
+            core.info(`Team ${teamName} has a GitHub Project: ${project.title} (ID: ${project.id})`);
 
-        // 5. Adds PR to team's GitHub Project board and assigns to the current Sprint (if team is migrated to GitHub Projects).
-        if (TEAM_TO_PROJECT_NUMBER[teamName] !== undefined) {
-            try {
-                const sprintTitle = await assignPrToProjectSprint(orgOctokit, pullRequest, teamName);
-                core.info(`PR added to GitHub Project board and assigned to sprint "${sprintTitle}".`);
-            } catch (err) {
-                core.warning(`Failed to assign PR to project sprint: ${err instanceof Error ? err.message : err}`);
+            const projectItemReference = await pullRequestToolkit.addToProject(project.node_id);
+            core.info(
+                `Pull request added to GitHub Project board: ${project.title} (item ID: ${projectItemReference.id})`,
+            );
+
+            const statusField = await pullRequestToolkit.getStatusFieldForProject(project.number);
+            if (!statusField) {
+                throw new UserError(
+                    `Project ${project.title} does not have a status field. Create one first in project settings.`,
+                );
+            }
+            const statusOption = pullRequestToolkit.getStatusOptionForValue(
+                statusField,
+                STATUS_FIELD_VALUES.PULL_REQUEST,
+            );
+            if (!statusOption) {
+                throw new UserError(
+                    `Project ${project.title} does not have a status option "${STATUS_FIELD_VALUES.PULL_REQUEST}". Create one first in project settings.`,
+                );
+            }
+            await pullRequestToolkit.setStatusForProjectItem(
+                project.node_id,
+                projectItemReference.id,
+                statusField.node_id!,
+                statusOption.id,
+            );
+            core.info(
+                `Pull request status field set to "${STATUS_FIELD_VALUES.PULL_REQUEST}" in project "${project.title}"`,
+            );
+
+            const sprintField = await pullRequestToolkit.getSprintFieldForProject(project.number);
+            if (sprintField) {
+                const itemSprint = await pullRequestToolkit.getSprintForProjectItem(
+                    sprintField,
+                    projectItemReference.id,
+                );
+                if (!itemSprint) {
+                    const currentSprint = pullRequestToolkit.getCurrentIteration(sprintField);
+                    if (currentSprint) {
+                        await pullRequestToolkit.setSprintForProjectItem(
+                            project.node_id,
+                            projectItemReference.id,
+                            sprintField.node_id!,
+                            currentSprint.id,
+                        );
+                        core.info(`Pull request added to current sprint "${currentSprint.title}"`);
+                    } else {
+                        throw new UserError(
+                            `Project ${project.title} does not have a current sprint iteration. Create one first in project settings.`,
+                        );
+                    }
+                } else {
+                    core.info(`Pull request already has a sprint assigned: ${itemSprint.title}`);
+                }
+            } else {
+                core.info(`Project ${project.title} does not have a sprint field. Skipping sprint assignment.`);
             }
         } else {
-            core.info(`Team ${teamName} is not using GitHub Projects. Skipping sprint assignment.`);
+            core.info(`Team ${teamName} does not have a GitHub Project.`);
         }
 
-        if (SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS.includes(teamName)) {
-            core.info(
-                `Team ${teamName} is listed in SKIP_MILESTONES_AND_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`,
-            );
+        if (SKIP_LINKING_AND_ESTIMATE_CHECKS_FOR_TEAMS.includes(teamName)) {
+            core.info(`Team ${teamName} is excluded from linking and estimate checks. Finishing now`);
             return;
         }
 
-        if (SKIP_ESTIMATES_FOR_TEAMS.includes(teamName)) {
-            core.info(
-                `Team ${teamName} is listed in SKIP_ESTIMATES_FOR_TEAMS. Skipping the linking and estimate check.`,
-            );
-            return;
-        }
-
-        // On the other hand, this is a check that author of the PR correctly filled in the details.
-        // I.e., that the PR is linked to the ZenHub issue and that the estimate is set either on issue or on the PR.
-        await retry(
-            async () => ensureCorrectLinkingAndEstimates(pullRequest, orgOctokit, zenhubToken, core),
-            LINKING_CHECK_RETRIES,
-            LINKING_CHECK_DELAY_MILLIS,
-            core,
+        // This check is retried a few times because linking/estimating an issue is often done by the author right after opening the PR,
+        // so the data may not be there yet on the first check.
+        core.info(
+            `Checking if pull request is linked to a GitHub issue, or is adhoc, and if it or its linked issues have an estimate.`,
         );
-        core.info('Pull request is correctly linked to a ZenHub or GitHub issue, or is adhoc, and has an estimate.');
+        let isLinkedOrAdhoc = false;
+        let isEstimated = false;
+        for (let attempt = 1; attempt <= LINKING_CHECK_RETRIES; attempt++) {
+            ({ isLinkedOrAdhoc, isEstimated } = await pullRequestToolkit.isCorrectlyLinkedAndEstimated());
+            if (isLinkedOrAdhoc && isEstimated) {
+                break;
+            }
+
+            if (attempt < LINKING_CHECK_RETRIES) {
+                core.info(
+                    `Pull request is not correctly linked or estimated. Retrying in ${LINKING_CHECK_DELAY_MILLIS} milliseconds (attempt ${attempt}/${LINKING_CHECK_RETRIES})...`,
+                );
+                await new Promise((resolve) => setTimeout(resolve, LINKING_CHECK_DELAY_MILLIS));
+            }
+        }
+        if (!isLinkedOrAdhoc)
+            throw new UserError('Pull request is not linked to a GitHub issue, and is not marked as adhoc.');
+        if (!isEstimated) throw new UserError('Neither the pull request nor its linked issues have an estimate set.');
+
+        core.info('Pull request is correctly linked to a GitHub issue, or is adhoc, and has an estimate.');
+
         core.info('All checks passed!');
     } catch (error) {
-        if (error instanceof Error) {
-            core.error(error);
-            console.error(error); // eslint-disable-line no-console
-            core.setFailed(error.message);
+        if (error instanceof UserError) {
+            core.error('There is a problem with the pull request that needs to be fixed by the user:');
+        } else {
+            core.error('There was an internal error when running the pull request toolkit, please report it on Slack:');
         }
+        core.error(error instanceof Error ? error : String(error));
+        core.setFailed(error instanceof Error ? error.message : String(error));
     }
 }

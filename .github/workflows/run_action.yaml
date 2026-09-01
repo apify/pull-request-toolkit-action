@@ -1,0 +1,21 @@
+name: Apify Pull Request Toolkit
+
+on:
+  pull_request:
+    types: ['opened', 'reopened', 'synchronize', 'labeled', 'unlabeled', 'edited', 'ready_for_review']
+
+concurrency: # This is to make sure that it's executed only for the most recent changes of the pull request.
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apify-pull-request-toolkit:
+    # This is to make sure that this workflow is only run when the action is used from a different repository.
+    # The workflow that tests the action against itself is in test_action.yaml.
+    if: github.repository != 'apify/pull-request-toolkit-action'
+    runs-on: ubuntu-22.04-arm64
+    steps:
+      - name: Apify Pull Request Toolkit
+        uses: apify/pull-request-toolkit-action@main
+        with:
+          org-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_GITHUB_TOKEN }}
