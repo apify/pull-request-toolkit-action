@@ -26,19 +26,19 @@ export async function main({
 
         if (pullRequestFromContext.head.repo.full_name !== pullRequestFromContext.base.repo.full_name) {
             core.info(
-                `Skipping toolkit action for PR from external fork: ${pullRequestFromContext.head.repo.full_name}`,
+                `Skipping toolkit action for pull request from external fork: ${pullRequestFromContext.head.repo.full_name}`,
             );
             return;
         }
         core.info('Pull request is from an Apify organization, not from an external fork.');
 
-        // This secret is not provided for PRs from forks, but we have skipped those already.
+        // This secret is not provided for pull requests from forks, but we have skipped those already.
         // If it is missing at this point, the action is misconfigured and we should fail.
         if (!input['org-token']) throw new Error('Missing org-token input!');
         const orgOctokit = getOctokit(input['org-token']);
 
         const githubModel = new GitHubModel(orgOctokit);
-        const apifyPullRequestToolkit = new PullRequestToolkit(
+        const pullRequestToolkit = new PullRequestToolkit(
             githubModel,
             core,
             pullRequestFromContext.base.repo.owner.login,
@@ -50,33 +50,32 @@ export async function main({
         // which have `pull_request_toolkit_required` set to true in the repo settings,
         // but theoretically someone could trigger the action manually for a repo which doesn't have it set,
         // so we check the enablement anyway.
-        if (!(await apifyPullRequestToolkit.isPullRequestToolkitRequiredForRepo())) {
+        if (!(await pullRequestToolkit.isPullRequestToolkitRequiredForRepo())) {
             core.info('Pull request toolkit is not required for this repository. Skipping.');
             return;
         }
         core.info('Pull request toolkit is required for this repository. Proceeding.');
 
-        if (await apifyPullRequestToolkit.isDraft()) {
+        if (await pullRequestToolkit.isDraft()) {
             core.info('Pull request is a draft. Skipping toolkit action.');
             return;
         }
         core.info('Pull request is not a draft.');
 
-        // Skip when PR is not into the default branch. We don't want to run this on release PRs or PR chains.
-        if (!(await apifyPullRequestToolkit.isToDefaultBranch())) {
-            core.info(`Skipping toolkit action for PR not into the default branch.`);
+        // Skip when the pull request is not into the default branch. We don't want to run this on releases or pull request chains.
+        if (!(await pullRequestToolkit.isToDefaultBranch())) {
+            core.info(`Skipping toolkit action for pull request not into the default branch.`);
             return;
         }
         core.info(`Pull request is into the default branch.`);
 
-        const pullRequestHumanCreator = await apifyPullRequestToolkit.getHumanCreator();
+        const pullRequestHumanCreator = await pullRequestToolkit.getHumanCreator();
         if (!pullRequestHumanCreator) {
             core.info('Pull request creator is a bot and no human is assigned. Skipping toolkit action.');
             return;
         }
 
-        const teamName =
-            await apifyPullRequestToolkit.findUsersProductEngineeringChildTeamName(pullRequestHumanCreator);
+        const teamName = await pullRequestToolkit.findUsersProductEngineeringChildTeamName(pullRequestHumanCreator);
         if (!teamName) {
             core.info(
                 `User ${pullRequestHumanCreator} is not a member of any Product Engineering team. Skipping toolkit action.`,
@@ -85,45 +84,47 @@ export async function main({
         }
         core.info(`User ${pullRequestHumanCreator} belongs to ${teamName} team.`);
 
-        // Checks if PR is tested and adds a `tested` label if so.
-        const isTested = await apifyPullRequestToolkit.isTested();
+        // Checks if the pull request is tested and adds a `tested` label if so.
+        const isTested = await pullRequestToolkit.isTested();
         if (isTested) {
-            await apifyPullRequestToolkit.markAsTested();
-            core.info('PR is tested.');
+            await pullRequestToolkit.markAsTested();
+            core.info('Marked pull request as tested.');
         } else {
-            core.info('PR is not tested.');
+            core.info('Pull request is not tested.');
         }
 
-        // Assigns PR creator.
-        await apifyPullRequestToolkit.assignCreator(pullRequestHumanCreator);
+        // Assigns the pull request creator.
+        await pullRequestToolkit.assignCreator(pullRequestHumanCreator);
         core.info(`Assigned pull request creator ${pullRequestHumanCreator} to the pull request.`);
 
         // Adds team label if not already there.
-        const teamLabelsOnPullRequest = await apifyPullRequestToolkit.getTeamLabels();
+        const teamLabelsOnPullRequest = await pullRequestToolkit.getTeamLabels();
         if (!teamLabelsOnPullRequest.length) {
-            await apifyPullRequestToolkit.addTeamLabel(teamName);
+            await pullRequestToolkit.addTeamLabel(teamName);
             core.info(`Team label for team ${teamName} successfully added`);
         } else {
-            core.info(`Team labels already present on PR: ${teamLabelsOnPullRequest.join(', ')}`);
+            core.info(`Team labels already present on pull request: ${teamLabelsOnPullRequest.join(', ')}`);
         }
 
-        // Adds PR to the team project if it exists,
+        // Adds the pull request to the team project if it exists,
         // sets the status field to "Pull Request",
         // and assigns it to the current sprint if the project has a sprint field.
-        const project = await apifyPullRequestToolkit.findProjectForTeam(teamName);
+        const project = await pullRequestToolkit.findProjectForTeam(teamName);
         if (project) {
             core.info(`Team ${teamName} has a GitHub Project: ${project.title} (ID: ${project.id})`);
 
-            const projectItemReference = await apifyPullRequestToolkit.addToProject(project.node_id);
-            core.info(`PR added to GitHub Project board: ${project.title} (item ID: ${projectItemReference.id})`);
+            const projectItemReference = await pullRequestToolkit.addToProject(project.node_id);
+            core.info(
+                `Pull request added to GitHub Project board: ${project.title} (item ID: ${projectItemReference.id})`,
+            );
 
-            const statusField = await apifyPullRequestToolkit.getStatusFieldForProject(project.number);
+            const statusField = await pullRequestToolkit.getStatusFieldForProject(project.number);
             if (!statusField) {
                 throw new UserError(
                     `Project ${project.title} does not have a status field. Create one first in project settings.`,
                 );
             }
-            const statusOption = apifyPullRequestToolkit.getStatusOptionForValue(
+            const statusOption = pullRequestToolkit.getStatusOptionForValue(
                 statusField,
                 STATUS_FIELD_VALUES.PULL_REQUEST,
             );
@@ -132,7 +133,7 @@ export async function main({
                     `Project ${project.title} does not have a status option "${STATUS_FIELD_VALUES.PULL_REQUEST}". Create one first in project settings.`,
                 );
             }
-            await apifyPullRequestToolkit.setStatusForProjectItem(
+            await pullRequestToolkit.setStatusForProjectItem(
                 project.node_id,
                 projectItemReference.id,
                 statusField.node_id!,
@@ -142,16 +143,16 @@ export async function main({
                 `Pull request status field set to "${STATUS_FIELD_VALUES.PULL_REQUEST}" in project "${project.title}"`,
             );
 
-            const sprintField = await apifyPullRequestToolkit.getSprintFieldForProject(project.number);
+            const sprintField = await pullRequestToolkit.getSprintFieldForProject(project.number);
             if (sprintField) {
-                const itemSprint = await apifyPullRequestToolkit.getSprintForProjectItem(
+                const itemSprint = await pullRequestToolkit.getSprintForProjectItem(
                     sprintField,
                     projectItemReference.id,
                 );
                 if (!itemSprint) {
-                    const currentSprint = apifyPullRequestToolkit.getCurrentIteration(sprintField);
+                    const currentSprint = pullRequestToolkit.getCurrentIteration(sprintField);
                     if (currentSprint) {
-                        await apifyPullRequestToolkit.setSprintForProjectItem(
+                        await pullRequestToolkit.setSprintForProjectItem(
                             project.node_id,
                             projectItemReference.id,
                             sprintField.node_id!,
@@ -181,12 +182,12 @@ export async function main({
         // This check is retried a few times because linking/estimating an issue is often done by the author right after opening the PR,
         // so the data may not be there yet on the first check.
         core.info(
-            `Checking if PR is linked to a GitHub issue, or is adhoc, and if it or its linked issues have an estimate.`,
+            `Checking if pull request is linked to a GitHub issue, or is adhoc, and if it or its linked issues have an estimate.`,
         );
         let isLinkedOrAdhoc = false;
         let isEstimated = false;
         for (let attempt = 1; attempt <= LINKING_CHECK_RETRIES; attempt++) {
-            ({ isLinkedOrAdhoc, isEstimated } = await apifyPullRequestToolkit.isCorrectlyLinkedAndEstimated());
+            ({ isLinkedOrAdhoc, isEstimated } = await pullRequestToolkit.isCorrectlyLinkedAndEstimated());
             if (isLinkedOrAdhoc && isEstimated) {
                 break;
             }

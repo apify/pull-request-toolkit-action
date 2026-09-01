@@ -47,8 +47,8 @@ export class PullRequestToolkit {
      */
     private async getPullRequest() {
         // We explicitly don't use the pull request from context or cache this result,
-        // but always fetch the PR fresh,
-        // because the PR might have changed something in the meantime (e.g., a label was added or assignees changed),
+        // but always fetch the pull request fresh,
+        // because something might have changed in the meantime (e.g., a label was added or assignees changed),
         // and we want to have the latest state during retries.
         return this.githubModel.getPullRequest(
             this.pullRequestRepoOwner,
@@ -78,8 +78,8 @@ export class PullRequestToolkit {
      */
     public async getHumanCreator(): Promise<string | null> {
         const pullRequest = await this.getPullRequest();
-        // Some PRs are created by bots, e.g., Dependabot or Copilot. In that case, we want to assign the PR to the human who created the PR.
-        // Copilot already assigns the PR to the human who gave it the task, we can use that.
+        // Some pull requests are created by bots, e.g., Dependabot or Copilot. In that case, we want to assign the pull request to the human who created it.
+        // Copilot already assigns the pull request to the human who gave it the task, we can use that.
         const candidates = [pullRequest.user, ...(pullRequest.assignees ?? [])]
             .filter(
                 (user) => user && !KNOWN_BOT_USERS.map((bot) => bot.toLowerCase()).includes(user.login.toLowerCase()),
@@ -97,7 +97,7 @@ export class PullRequestToolkit {
         const pullRequest = await this.getPullRequest();
         const existingAssignees = pullRequest.assignees || [];
         if (existingAssignees.some((assignee) => assignee?.login === userLogin)) {
-            this.core.info(`PR creator ${userLogin} is already assigned.`);
+            this.core.info(`Pull request creator ${userLogin} is already assigned.`);
             return;
         }
 
@@ -246,7 +246,7 @@ export class PullRequestToolkit {
     }
 
     /**
-     * Checks if the PR Toolkit is required for this repo (based on pull_request_toolkit_required custom repository property).
+     * Checks if the Pull Request Toolkit is required for this repo (based on pull_request_toolkit_required custom repository property).
      */
     public async isPullRequestToolkitRequiredForRepo(): Promise<boolean> {
         const repo = await this.githubModel.getRepo(this.pullRequestRepoOwner, this.pullRequestRepoName);
@@ -293,7 +293,7 @@ export class PullRequestToolkit {
     }
 
     /**
-     * Gets all issues linked to the pull request, both natively and via references in the PR body.
+     * Gets all issues linked to the pull request, both natively and via references in its body.
      */
     private async getLinkedIssues() {
         const nativelyLinkedIssues = await this.githubModel.getNativelyLinkedIssuesForPullRequest(
@@ -351,7 +351,7 @@ export class PullRequestToolkit {
     /**
      * Parses the pull request body for issue-closing references (e.g., "fixes #123") and returns the referenced issues.
      * This is a fallback/addition to `getNativelyLinkedIssuesForPullRequest`, since GitHub's own detection of such
-     * references is not always reliable (e.g. references added by editing the body after PR creation).
+     * references is not always reliable (e.g. references added by editing the body after the pull request creation).
      */
     private async getIssuesMentionedInPullRequestBody() {
         const pullRequest = await this.githubModel.getPullRequest(

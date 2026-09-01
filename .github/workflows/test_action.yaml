@@ -7,7 +7,7 @@ on:
   pull_request:
     types: ['opened', 'reopened', 'synchronize', 'labeled', 'unlabeled', 'edited', 'ready_for_review']
 
-concurrency: # This is to make sure that it's executed only for the most recent changes of PR.
+concurrency: # This is to make sure that it's executed only for the most recent changes of the pull request.
   group: testing-${{ github.ref }}
   cancel-in-progress: true
 
