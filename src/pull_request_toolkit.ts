@@ -1,4 +1,3 @@
-/* oxlint-disable no-console */
 import {
     PROJECT_FIELD_NAMES,
     KNOWN_BOT_USERS,
