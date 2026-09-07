@@ -143,33 +143,11 @@ export async function main({
                 `Pull request status field set to "${STATUS_FIELD_VALUES.PULL_REQUEST}" in project "${project.title}"`,
             );
 
-            const sprintField = await pullRequestToolkit.getSprintFieldForProject(project.number);
-            if (sprintField) {
-                const itemSprint = await pullRequestToolkit.getSprintForProjectItem(
-                    sprintField,
-                    projectItemReference.id,
-                );
-                if (!itemSprint) {
-                    const currentSprint = pullRequestToolkit.getCurrentIteration(sprintField);
-                    if (currentSprint) {
-                        await pullRequestToolkit.setSprintForProjectItem(
-                            project.node_id,
-                            projectItemReference.id,
-                            sprintField.node_id!,
-                            currentSprint.id,
-                        );
-                        core.info(`Pull request added to current sprint "${currentSprint.title}"`);
-                    } else {
-                        throw new UserError(
-                            `Project ${project.title} does not have a current sprint iteration. Create one first in project settings.`,
-                        );
-                    }
-                } else {
-                    core.info(`Pull request already has a sprint assigned: ${itemSprint.title}`);
-                }
-            } else {
-                core.info(`Project ${project.title} does not have a sprint field. Skipping sprint assignment.`);
-            }
+            await pullRequestToolkit.maybeAssignProjectItemToCurrentSprint(
+                project.number,
+                project.node_id,
+                projectItemReference.id,
+            );
         } else {
             core.info(`Team ${teamName} does not have a GitHub Project.`);
         }

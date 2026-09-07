@@ -195,7 +195,7 @@ export class PullRequestToolkit {
     /**
      * Finds the sprint (iteration) field on the given project.
      */
-    public async getSprintFieldForProject(projectNumber: number): Promise<IterationField | undefined> {
+    private async getSprintFieldForProject(projectNumber: number): Promise<IterationField | undefined> {
         const fields = await this.githubModel.getProjectFields(this.pullRequestRepoOwner, projectNumber);
         return fields.find((field) => field.name === PROJECT_FIELD_NAMES.SPRINT && field.data_type === 'iteration') as
             | IterationField
@@ -205,7 +205,7 @@ export class PullRequestToolkit {
     /**
      * Returns the current iteration from the given iteration based on the current date, if there is any.
      */
-    public getCurrentIteration(iteration: IterationField): Iteration | undefined {
+    private getCurrentIteration(iteration: IterationField): Iteration | undefined {
         if (!iteration.configuration.iterations) return undefined;
         const now = new Date();
         const currentIteration = iteration.configuration.iterations.find((option) => {
@@ -219,7 +219,7 @@ export class PullRequestToolkit {
     /**
      * Gets the sprint (iteration) value currently set on a project item.
      */
-    public async getSprintForProjectItem(sprintField: IterationField, projectItemId: string) {
+    private async getSprintForProjectItem(sprintField: IterationField, projectItemId: string) {
         const itemFields = await this.githubModel.getProjectItemFieldValues(projectItemId);
 
         const sprintFieldValue = itemFields[sprintField.name] as
@@ -231,7 +231,7 @@ export class PullRequestToolkit {
     /**
      * Sets the sprint (iteration) value on a project item.
      */
-    public async setSprintForProjectItem(
+    private async setSprintForProjectItem(
         projectNodeId: string,
         projectItemId: string,
         sprintFieldNodeId: string,
@@ -243,6 +243,44 @@ export class PullRequestToolkit {
             sprintFieldNodeId,
             iterationId,
         );
+    }
+
+    /**
+     * Assigns the pull request to the current sprint (iteration) of the given project, if it has a sprint field.
+     * If the project does not have a sprint field, the function returns silently without doing anything.
+     * If the pull request already has a sprint assigned, it is not changed.
+     * If the project has a sprint field but no current iteration, the function throws an error.
+     */
+    public async maybeAssignProjectItemToCurrentSprint(
+        projectNumber: number,
+        projectNodeId: string,
+        projectItemReferenceId: string,
+    ) {
+        const sprintField = await this.getSprintFieldForProject(projectNumber);
+        if (!sprintField) {
+            this.core.info(`Project ${projectNumber} does not have a sprint field. Skipping sprint assignment.`);
+            return;
+        }
+        const itemSprint = await this.getSprintForProjectItem(sprintField, projectItemReferenceId);
+        if (itemSprint) {
+            this.core.info(`Pull request already has a sprint assigned: ${itemSprint.title}`);
+            return;
+        }
+
+        const currentSprint = this.getCurrentIteration(sprintField);
+        if (!currentSprint) {
+            throw new UserError(
+                `Project ${projectNumber} does not have a current sprint iteration. Create one first in project settings.`,
+            );
+        }
+
+        await this.setSprintForProjectItem(
+            projectNodeId,
+            projectItemReferenceId,
+            sprintField.node_id!,
+            currentSprint.id,
+        );
+        this.core.info(`Pull request added to current sprint "${currentSprint.title}"`);
     }
 
     /**
