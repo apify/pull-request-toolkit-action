@@ -421,7 +421,7 @@ export class PullRequestToolkit {
     /**
      * Gets the estimate value set on a project item, if any.
      */
-    private async getEstimatesInProjectItems(projectItemId: string) {
+    private async getEstimateInProjectItems(projectItemId: string) {
         const fieldValues = await this.githubModel.getProjectItemFieldValues(projectItemId);
         const estimate = fieldValues[PROJECT_FIELD_NAMES.ESTIMATE] as
             | Extract<FieldValue, { dataType: 'NUMBER' }>
@@ -451,7 +451,7 @@ export class PullRequestToolkit {
             ).flat(),
         ];
         for (const projectItem of projectItems) {
-            const estimate = await this.getEstimatesInProjectItems(projectItem.id);
+            const estimate = await this.getEstimateInProjectItems(projectItem.id);
             if (estimate !== undefined) {
                 return true;
             }
