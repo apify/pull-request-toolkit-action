@@ -35,7 +35,7 @@ export async function main({
         // This secret is not provided for pull requests from forks, but we have skipped those already.
         // If it is missing at this point, the action is misconfigured and we should fail.
         if (!input['org-token']) throw new Error('Missing org-token input!');
-        const orgOctokit = getOctokit(input['org-token']);
+        const orgOctokit = getOctokit(input['org-token'], { retry: { enabled: true }, request: { retries: 3 } });
 
         const githubModel = new GitHubModel(orgOctokit);
         const pullRequestToolkit = new PullRequestToolkit(
