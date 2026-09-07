@@ -453,7 +453,7 @@ export class PullRequestToolkit {
         ];
         for (const projectItem of projectItems) {
             const estimate = await this.getEstimatesInProjectItems(projectItem.id);
-            if (estimate) {
+            if (estimate !== undefined) {
                 return true;
             }
         }
