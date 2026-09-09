@@ -73,6 +73,14 @@ export class PullRequestToolkit {
     }
 
     /**
+     * Checks whether the pull request is merged.
+     */
+    public async isMerged(): Promise<boolean> {
+        const pullRequest = await this.getPullRequest();
+        return !!pullRequest.merged;
+    }
+
+    /**
      * Finds the human creator of the pull request, falling back to a human assignee if it was created by a bot.
      */
     public async getHumanCreator(): Promise<string | null> {
@@ -457,7 +465,18 @@ export class PullRequestToolkit {
             this.pullRequestNumber,
         );
         if (!pullRequest.body) return [];
-        const referenceWordRegexp = new RegExp('(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)', 'ig');
+
+        // These are native GitHub reference phrases which cause an issue to be automatically linked
+        const closingReferenceRegexp = new RegExp(
+            '(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)',
+            'ig',
+        );
+        // These are non-native reference phrases (an Apify extension)
+        const nonClosingReferenceRegexp = new RegExp('(part of)', 'ig');
+        const referenceRegexp = new RegExp(
+            `(?<reference>${closingReferenceRegexp.source}|${nonClosingReferenceRegexp.source})`,
+            'ig',
+        );
         const issueUrlRefRegexp = new RegExp(
             '(https://github.com/(?<owner>[^/\\s]+)/(?<repo>[^/\\s]+)/issues/(?<number>\\d+))',
             'ig',
@@ -465,17 +484,50 @@ export class PullRequestToolkit {
         const issueShortRefRegexp = new RegExp('((?<owner>[^/\\s]+)/(?<repo>[^/\\s]+))?#(?<number>\\d+)', 'ig');
 
         const fullRegexp = new RegExp(
-            `${referenceWordRegexp.source}\\s+(${issueUrlRefRegexp.source}|${issueShortRefRegexp.source})`,
+            `${referenceRegexp.source}\\s+(${issueUrlRefRegexp.source}|${issueShortRefRegexp.source})`,
             'ig',
         );
 
         return [
             ...pullRequest.body.matchAll(fullRegexp).map((match) => ({
+                isClosingReference: closingReferenceRegexp.test(match.groups!.reference),
+                isNativeReference: closingReferenceRegexp.test(match.groups!.reference), // Native GitHub references are all closing
                 owner: match.groups!.owner || pullRequest.base.repo.owner.login,
                 repo: match.groups!.repo || pullRequest.base.repo.name,
                 number: parseInt(match.groups!.number, 10),
             })),
         ];
+    }
+
+    /**
+     * Links all issues mentioned in the pull request body that are not native references.
+     */
+    public async linkIssuesMentionedInPullRequestBody() {
+        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody();
+        // Native references are linked automatically by GitHub
+        const issuesToLink = mentionedIssues.filter((issue) => !issue.isNativeReference);
+
+        for (const issue of issuesToLink) {
+            await this.githubModel.linkPullRequestToIssue(
+                issue.owner,
+                issue.repo,
+                issue.number,
+                this.pullRequestRepoOwner,
+                this.pullRequestRepoName,
+                this.pullRequestNumber,
+            );
+        }
+    }
+
+    /**
+     * Closes all issues that are mentioned in the pull request body with a closing reference (e.g., "fixes #123").
+     */
+    public async closeIssuesMentionedInPullRequestBody() {
+        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody();
+        const issuesToClose = mentionedIssues.filter((issue) => issue.isClosingReference);
+        for (const issue of issuesToClose) {
+            await this.githubModel.closeIssueAsCompleted(issue.owner, issue.repo, issue.number);
+        }
     }
 
     /**

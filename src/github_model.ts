@@ -134,6 +134,28 @@ export class GitHubModel {
     }
 
     /**
+     * Links a pull request to an issue.
+     */
+    public async linkPullRequestToIssue(
+        issueOwner: string,
+        issueRepo: string,
+        issueNumber: number,
+        pullRequestOwner: string,
+        pullRequestRepo: string,
+        pullRequestNumber: number,
+    ) {
+        return await this.githubControllerActorClient.call(
+            'POST',
+            `/${issueOwner}/${issueRepo}/issues/${issueNumber}/link-pull-request`,
+            {
+                owner: pullRequestOwner,
+                repo: pullRequestRepo,
+                pullRequestNumber,
+            },
+        );
+    }
+
+    /**
      * Fetches the parent issue of the given issue, if any.
      */
     public async getParentIssue(owner: string, repo: string, number: number) {
@@ -425,6 +447,19 @@ export class GitHubModel {
             'POST',
             `/orgs/${orgName}/projects/${projectNumber}/settings/fields/${iterationFieldNumber}/add-iteration`,
         );
+    }
+
+    /**
+     * Closes an issue with the "completed" state reason.
+     */
+    public async closeIssueAsCompleted(owner: string, repo: string, number: number): Promise<void> {
+        await this.octokit.rest.issues.update({
+            owner,
+            repo,
+            issue_number: number,
+            state: 'closed',
+            state_reason: 'completed',
+        });
     }
 
     /**

@@ -66,6 +66,20 @@ export async function main({
         }
         core.info('Pull request is not a draft.');
 
+        // Link issues mentioned in the pull request body whenever the body is edited.
+        if (['opened', 'reopened', 'edited'].includes(context.payload.action ?? '')) {
+            await pullRequestToolkit.linkIssuesMentionedInPullRequestBody();
+            core.info('Linked issues mentioned in the pull request body.');
+        }
+
+        // We close issues mentioned in the pull request body early on, even for pull requests not in product engineering.
+        // We disable the built-in GitHub automated closing issues when a pull request is merged,
+        // because it closed all linked issues, not just the ones mentioned with closing references.
+        if (context.payload.action === 'closed' && (await pullRequestToolkit.isMerged())) {
+            await pullRequestToolkit.closeIssuesMentionedInPullRequestBody();
+            core.info('Closed issues mentioned in the pull request body.');
+        }
+
         // Skip when the pull request is not into the default branch. We don't want to run this on releases or pull request chains.
         if (!(await pullRequestToolkit.isToDefaultBranch())) {
             core.info(`Skipping toolkit action for pull request not into the default branch.`);
