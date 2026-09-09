@@ -215,6 +215,64 @@ export class PullRequestToolkit {
         return currentIteration;
     }
 
+    private getLastIteration(iteration: IterationField): Iteration | undefined {
+        if (!iteration.configuration.iterations) return undefined;
+        const lastIteration = iteration.configuration.iterations.reduce((latest, current) => {
+            const latestEndDate = new Date(
+                new Date(latest.start_date).getTime() + latest.duration * 24 * 60 * 60 * 1000,
+            );
+            const currentEndDate = new Date(
+                new Date(current.start_date).getTime() + current.duration * 24 * 60 * 60 * 1000,
+            );
+            return currentEndDate > latestEndDate ? current : latest;
+        });
+        return lastIteration;
+    }
+
+    /**
+     * Adds the current sprint (iteration) to the given project, if it has a sprint field and a current iteration.
+     */
+    private async ensureCurrentSprintInProject(projectNumber: number) {
+        const sprintField = await this.getSprintFieldForProject(projectNumber);
+        if (!sprintField) {
+            this.core.info(`Project ${projectNumber} does not have a sprint field. Skipping adding current sprint.`);
+            return;
+        }
+
+        const currentIteration = this.getCurrentIteration(sprintField);
+        if (currentIteration) {
+            return;
+        }
+
+        const lastIteration = this.getLastIteration(sprintField);
+        if (!lastIteration) {
+            this.core.info(
+                `Project ${projectNumber} does not have any iterations in the sprint field. Adding the first iteration.`,
+            );
+            await this.githubModel.addIterationToIterationField(
+                this.pullRequestRepoOwner,
+                projectNumber,
+                sprintField.id,
+            );
+            return;
+        }
+
+        const missingIterationCount =
+            Math.ceil(
+                (Date.now() - new Date(lastIteration.start_date).getTime()) /
+                    (lastIteration.duration * 24 * 60 * 60 * 1000),
+            ) + 1;
+        this.core.info(`Project ${projectNumber} is missing ${missingIterationCount} iterations. Adding them.`);
+        for (let i = 0; i < missingIterationCount; i++) {
+            this.core.debug(`Adding iteration ${i + 1} of ${missingIterationCount} to project ${projectNumber}.`);
+            await this.githubModel.addIterationToIterationField(
+                this.pullRequestRepoOwner,
+                projectNumber,
+                sprintField.id,
+            );
+        }
+    }
+
     /**
      * Gets the sprint (iteration) value currently set on a project item.
      */
@@ -265,6 +323,8 @@ export class PullRequestToolkit {
             this.core.info(`Pull request already has a sprint assigned: ${itemSprint.title}`);
             return;
         }
+
+        await this.ensureCurrentSprintInProject(projectNumber);
 
         const currentSprint = this.getCurrentIteration(sprintField);
         if (!currentSprint) {

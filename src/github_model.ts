@@ -1,3 +1,4 @@
+import type { GitHubControllerActorClient } from './github_controller_actor_client.ts';
 import type { Octokit, FieldValue, IssueOrPullRequestSpec } from './types.ts';
 
 /**
@@ -6,9 +7,11 @@ import type { Octokit, FieldValue, IssueOrPullRequestSpec } from './types.ts';
  */
 export class GitHubModel {
     private octokit: Octokit;
+    private githubControllerActorClient: GitHubControllerActorClient;
 
-    constructor(octokit: Octokit) {
+    constructor(octokit: Octokit, githubControllerActorClient: GitHubControllerActorClient) {
         this.octokit = octokit;
+        this.githubControllerActorClient = githubControllerActorClient;
     }
 
     /**
@@ -408,6 +411,20 @@ export class GitHubModel {
             issue_number: number,
             labels: [labelName],
         });
+    }
+
+    /**
+     * Adds a new iteration to an iteration field of a project.
+     */
+    public async addIterationToIterationField(
+        orgName: string,
+        projectNumber: number,
+        iterationFieldNumber: number,
+    ): Promise<void> {
+        await this.githubControllerActorClient.call(
+            'POST',
+            `/orgs/${orgName}/projects/${projectNumber}/settings/fields/${iterationFieldNumber}/add-iteration`,
+        );
     }
 
     /**
