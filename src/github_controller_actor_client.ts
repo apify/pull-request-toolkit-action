@@ -9,16 +9,20 @@ export class GitHubControllerActorClient {
         this.apifyApiToken = apifyApiToken;
     }
 
-    public async call(method: string, endpoint: string): Promise<any> {
+    public async call(method: 'GET', endpoint: string): Promise<any>;
+    public async call(method: 'POST', endpoint: string, body?: any): Promise<any>;
+    public async call(method: 'GET' | 'POST', endpoint: string, body?: any): Promise<any> {
         if (!endpoint.startsWith('/')) {
             endpoint = `/${endpoint}`;
         }
 
-        const options = {
+        const options: RequestInit = {
             method,
             headers: {
                 Authorization: `Bearer ${this.apifyApiToken}`,
+                'Content-Type': 'application/json',
             },
+            body: body ? JSON.stringify(body) : undefined,
         };
         const url = `${GITHUB_CONTROLLER_BASE_URL}${endpoint}`;
         const response = await fetchWithRetry(url, options);
