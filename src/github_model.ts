@@ -60,6 +60,18 @@ export class GitHubModel {
     }
 
     /**
+     * Fetches an issue.
+     */
+    public async getIssue(owner: string, repo: string, number: number) {
+        const { data: issue } = await this.octokit.rest.issues.get({
+            owner,
+            repo,
+            issue_number: number,
+        });
+        return issue;
+    }
+
+    /**
      * Fetches a pull request.
      */
     public async getPullRequest(owner: string, repo: string, number: number) {
@@ -136,21 +148,26 @@ export class GitHubModel {
     /**
      * Links a pull request to an issue.
      */
-    public async linkPullRequestToIssue(
-        issueOwner: string,
-        issueRepo: string,
-        issueNumber: number,
-        pullRequestOwner: string,
-        pullRequestRepo: string,
-        pullRequestNumber: number,
-    ) {
-        return await this.githubControllerActorClient.call(
-            'POST',
-            `/${issueOwner}/${issueRepo}/issues/${issueNumber}/link-pull-request`,
+    public async linkPullRequestToIssue(issueNodeId: string, pullRequestNodeId: string) {
+        return await this.octokit.graphql(
+            `
+            mutation linkPullRequestToIssue(
+                $issueNodeId: ID!,
+                $pullRequestNodeId: ID!
+            ) {
+                addCloseIssueReferences(
+                    input: {
+                        issueId: $issueNodeId,
+                        pullRequestIds: [$pullRequestNodeId]
+                    }
+                ) {
+                    clientMutationId
+                }
+            }
+        `,
             {
-                owner: pullRequestOwner,
-                repo: pullRequestRepo,
-                pullRequestNumber,
+                issueNodeId,
+                pullRequestNodeId,
             },
         );
     }

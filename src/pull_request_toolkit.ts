@@ -504,18 +504,20 @@ export class PullRequestToolkit {
      */
     public async linkIssuesMentionedInPullRequestBody() {
         const mentionedIssues = await this.getIssuesMentionedInPullRequestBody();
+
         // Native references are linked automatically by GitHub
         const issuesToLink = mentionedIssues.filter((issue) => !issue.isNativeReference);
+        if (issuesToLink.length === 0) return;
 
-        for (const issue of issuesToLink) {
-            await this.githubModel.linkPullRequestToIssue(
-                issue.owner,
-                issue.repo,
-                issue.number,
-                this.pullRequestRepoOwner,
-                this.pullRequestRepoName,
-                this.pullRequestNumber,
+        const pullRequest = await this.getPullRequest();
+
+        for (const issueReference of issuesToLink) {
+            const issue = await this.githubModel.getIssue(
+                issueReference.owner,
+                issueReference.repo,
+                issueReference.number,
             );
+            await this.githubModel.linkPullRequestToIssue(issue.node_id, pullRequest.node_id);
         }
     }
 
