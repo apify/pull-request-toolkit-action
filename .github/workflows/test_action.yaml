@@ -24,4 +24,4 @@ jobs:
         uses: ./
         with:
           org-github-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_GITHUB_TOKEN }}
-          apify-api-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_APIFY_API_TOKEN }}
+          apify-api-token: ${{ secrets.ACTOR_GITHUB_CONTROLLER_APIFY_API_TOKEN }}
