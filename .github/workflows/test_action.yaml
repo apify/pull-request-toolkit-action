@@ -1,18 +1,20 @@
 # This runs the action against itself to make sure it works as expected.
 # This is not the workflow that needs to be used in the repositories that want to use this action.
-name: "[Testing] Apify PR toolkit"
+# For that, see the run_action.yaml workflow.
+name: "[Testing] Apify Pull Request Toolkit"
 
 on:
   pull_request:
     types: ['opened', 'reopened', 'synchronize', 'labeled', 'unlabeled', 'edited', 'ready_for_review']
 
-concurrency: # This is to make sure that it's executed only for the most recent changes of PR.
+concurrency: # This is to make sure that it's executed only for the most recent changes of the pull request.
   group: testing-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  apify-pr-toolkit:
-    if: github.event.pull_request.draft == false
+  apify-pull-request-toolkit:
+    # This is to make sure that this workflow is only run when the action is tested against itself.
+    if: github.repository == 'apify/pull-request-toolkit-action'
     runs-on: ubuntu-latest
     steps:
       - name: clone local repository
@@ -21,6 +23,4 @@ jobs:
       - name: run pull-request-toolkit action
         uses: ./
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
           org-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_GITHUB_TOKEN }}
-          zenhub-token: ${{ secrets.PULL_REQUEST_TOOLKIT_ACTION_ZENHUB_TOKEN }}

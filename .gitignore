@@ -7,3 +7,5 @@ lib/**/*
 .idea
 .DS_Store
 .vscode
+
+local_scripts
