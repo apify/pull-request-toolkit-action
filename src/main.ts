@@ -5,6 +5,7 @@ import {
     STATUS_FIELD_VALUES,
 } from './consts.ts';
 import { UserError } from './errors.ts';
+import { GitHubControllerActorClient } from './github_controller_actor_client.ts';
 import { GitHubModel } from './github_model.ts';
 import { PullRequestToolkit } from './pull_request_toolkit.ts';
 import type { Core, Context, GetOctokitFunction } from './types.ts';
@@ -18,7 +19,7 @@ export async function main({
     getOctokit: GetOctokitFunction;
     context: Context;
     core: Core;
-    input: { 'org-token'?: string };
+    input: { 'org-github-token'?: string; 'apify-api-token'?: string };
 }) {
     try {
         const pullRequestFromContext = context.payload.pull_request;
@@ -34,10 +35,13 @@ export async function main({
 
         // This secret is not provided for pull requests from forks, but we have skipped those already.
         // If it is missing at this point, the action is misconfigured and we should fail.
-        if (!input['org-token']) throw new Error('Missing org-token input!');
-        const orgOctokit = getOctokit(input['org-token'], { retry: { enabled: true }, request: { retries: 3 } });
+        if (!input['org-github-token']) throw new Error('Missing org-github-token input!');
+        const orgOctokit = getOctokit(input['org-github-token'], { retry: { enabled: true }, request: { retries: 3 } });
 
-        const githubModel = new GitHubModel(orgOctokit);
+        if (!input['apify-api-token']) throw new Error('Missing apify-api-token input!');
+        const gitHubControllerActorClient = new GitHubControllerActorClient(input['apify-api-token'] ?? '');
+
+        const githubModel = new GitHubModel(orgOctokit, gitHubControllerActorClient);
         const pullRequestToolkit = new PullRequestToolkit(
             githubModel,
             core,

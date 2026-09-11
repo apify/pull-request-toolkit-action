@@ -2,16 +2,20 @@ name: 'Apify Pull Request Toolkit'
 description: 'This action automates a couple of processes connected with the management of GitHub pull requests.'
 author: 'Apify'
 inputs:
-    org-token:
+    org-github-token:
         required: true
         description: 'GitHub token with read and write access (required for GitHub Projects v2 sprint assignment)'
+    apify-api-token:
+        required: true
+        description: 'Apify API token with access to the platform-services/github-controller Actor'
 runs:
     using: 'composite'
     steps:
         - name: 'Apify Pull Request Toolkit'
           uses: actions/github-script@v9
           env:
-            GITHUB_ORG_TOKEN: ${{ inputs.org-token }}
+            GITHUB_ORG_TOKEN: ${{ inputs.org-github-token }}
+            APIFY_API_TOKEN: ${{ inputs.apify-api-token }}
           with:
             script: |
               const { main } = require('${{ github.action_path }}/src/main.ts');
@@ -20,5 +24,5 @@ runs:
                   getOctokit,
                   context,
                   core,
-                  input: { 'org-token': process.env.GITHUB_ORG_TOKEN },
+                  input: { 'org-github-token': process.env.GITHUB_ORG_TOKEN, 'apify-api-token': process.env.APIFY_API_TOKEN },
               });
