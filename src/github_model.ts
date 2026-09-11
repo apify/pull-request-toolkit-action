@@ -60,6 +60,18 @@ export class GitHubModel {
     }
 
     /**
+     * Fetches an issue.
+     */
+    public async getIssue(owner: string, repo: string, number: number) {
+        const { data: issue } = await this.octokit.rest.issues.get({
+            owner,
+            repo,
+            issue_number: number,
+        });
+        return issue;
+    }
+
+    /**
      * Fetches a pull request.
      */
     public async getPullRequest(owner: string, repo: string, number: number) {
@@ -131,6 +143,33 @@ export class GitHubModel {
         return response.repository.pullRequest.closingIssuesReferences.nodes
             .filter((node) => node !== null)
             .map((node) => ({ owner: node.repository.owner.login, repo: node.repository.name, number: node.number }));
+    }
+
+    /**
+     * Links a pull request to an issue.
+     */
+    public async linkPullRequestToIssue(issueNodeId: string, pullRequestNodeId: string) {
+        return await this.octokit.graphql(
+            `
+            mutation linkPullRequestToIssue(
+                $issueNodeId: ID!,
+                $pullRequestNodeId: ID!
+            ) {
+                addCloseIssueReferences(
+                    input: {
+                        issueId: $issueNodeId,
+                        pullRequestIds: [$pullRequestNodeId]
+                    }
+                ) {
+                    clientMutationId
+                }
+            }
+        `,
+            {
+                issueNodeId,
+                pullRequestNodeId,
+            },
+        );
     }
 
     /**
@@ -425,6 +464,19 @@ export class GitHubModel {
             'POST',
             `/orgs/${orgName}/projects/${projectNumber}/settings/fields/${iterationFieldNumber}/add-iteration`,
         );
+    }
+
+    /**
+     * Closes an issue with the "completed" state reason.
+     */
+    public async closeIssueAsCompleted(owner: string, repo: string, number: number): Promise<void> {
+        await this.octokit.rest.issues.update({
+            owner,
+            repo,
+            issue_number: number,
+            state: 'closed',
+            state_reason: 'completed',
+        });
     }
 
     /**
