@@ -119,6 +119,8 @@ export class PullRequestToolkit {
             this.pullRequestNumber,
             assigneeLogins,
         );
+
+        this.core.info(`Assigned pull request creator ${userLogin} to the pull request.`);
     }
 
     /**
@@ -347,7 +349,7 @@ export class PullRequestToolkit {
             sprintField.node_id!,
             currentSprint.id,
         );
-        this.core.info(`Pull request added to current sprint "${currentSprint.title}"`);
+        this.core.info(`Pull request added to current sprint "${currentSprint.title.raw}"`);
     }
 
     /**
@@ -395,6 +397,8 @@ export class PullRequestToolkit {
             this.pullRequestNumber,
             teamLabelName,
         );
+
+        this.core.info(`Team label for team ${teamName} successfully added`);
     }
 
     /**
@@ -519,6 +523,8 @@ export class PullRequestToolkit {
             );
             await this.githubModel.linkPullRequestToIssue(issue.node_id, pullRequest.node_id);
         }
+
+        this.core.info('Linked issues mentioned in the pull request body.');
     }
 
     /**
@@ -527,9 +533,12 @@ export class PullRequestToolkit {
     public async closeIssuesMentionedInPullRequestBody() {
         const mentionedIssues = await this.getIssuesMentionedInPullRequestBody();
         const issuesToClose = mentionedIssues.filter((issue) => issue.isClosingReference);
+        if (issuesToClose.length === 0) return;
+
         for (const issue of issuesToClose) {
             await this.githubModel.closeIssueAsCompleted(issue.owner, issue.repo, issue.number);
         }
+        this.core.info('Closed issues mentioned in the pull request body.');
     }
 
     /**
@@ -610,6 +619,11 @@ export class PullRequestToolkit {
      * Adds the "tested" label to the pull request.
      */
     public async markAsTested() {
+        const pullRequest = await this.getPullRequest();
+        if (pullRequest.labels.some((label: { name: string }) => label.name === LABELS.TESTED)) {
+            return;
+        }
+
         const repoLabels = await this.githubModel.getLabelsForRepo(this.pullRequestRepoOwner, this.pullRequestRepoName);
 
         if (!repoLabels.includes(LABELS.TESTED))
@@ -623,5 +637,7 @@ export class PullRequestToolkit {
             this.pullRequestNumber,
             LABELS.TESTED,
         );
+
+        this.core.info('Marked pull request as tested.');
     }
 }

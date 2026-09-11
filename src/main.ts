@@ -67,17 +67,13 @@ export async function main({
         core.info('Pull request is not a draft.');
 
         // Link issues mentioned in the pull request body whenever the body is edited.
-        if (['opened', 'reopened', 'edited'].includes(context.payload.action ?? '')) {
-            await pullRequestToolkit.linkIssuesMentionedInPullRequestBody();
-            core.info('Linked issues mentioned in the pull request body.');
-        }
+        await pullRequestToolkit.linkIssuesMentionedInPullRequestBody();
 
         // We close issues mentioned in the pull request body early on, even for pull requests not in product engineering.
         // We disable the built-in GitHub automated closing issues when a pull request is merged,
         // because it closed all linked issues, not just the ones mentioned with closing references.
-        if (context.payload.action === 'closed' && (await pullRequestToolkit.isMerged())) {
+        if (await pullRequestToolkit.isMerged()) {
             await pullRequestToolkit.closeIssuesMentionedInPullRequestBody();
-            core.info('Closed issues mentioned in the pull request body.');
         }
 
         // Skip when the pull request is not into the default branch. We don't want to run this on releases or pull request chains.
@@ -106,20 +102,17 @@ export async function main({
         const isTested = await pullRequestToolkit.isTested();
         if (isTested) {
             await pullRequestToolkit.markAsTested();
-            core.info('Marked pull request as tested.');
         } else {
             core.info('Pull request is not tested.');
         }
 
         // Assigns the pull request creator.
         await pullRequestToolkit.assignCreator(pullRequestHumanCreator);
-        core.info(`Assigned pull request creator ${pullRequestHumanCreator} to the pull request.`);
 
         // Adds team label if not already there.
         const teamLabelsOnPullRequest = await pullRequestToolkit.getTeamLabels();
         if (!teamLabelsOnPullRequest.length) {
             await pullRequestToolkit.addTeamLabel(teamName);
-            core.info(`Team label for team ${teamName} successfully added`);
         } else {
             core.info(`Team labels already present on pull request: ${teamLabelsOnPullRequest.join(', ')}`);
         }
@@ -208,7 +201,6 @@ export async function main({
         } else {
             core.error('There was an internal error when running the pull request toolkit, please report it on Slack:');
         }
-        core.error(error instanceof Error ? error : String(error));
         core.setFailed(error instanceof Error ? error.message : String(error));
     }
 }
