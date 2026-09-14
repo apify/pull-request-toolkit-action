@@ -575,7 +575,8 @@ export class PullRequestToolkit {
         ];
         for (const projectItem of projectItems) {
             const estimate = await this.getEstimateInProjectItems(projectItem.id);
-            if (estimate !== undefined) {
+            // `null` means the field isn't set; `0` is a valid estimate.
+            if (estimate !== null) {
                 return true;
             }
         }
