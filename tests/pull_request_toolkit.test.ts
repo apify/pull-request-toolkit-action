@@ -32,9 +32,31 @@ describe('isCorrectlyLinkedAndEstimated', () => {
         const { isLinkedOrAdhoc, isEstimated } = await makeToolkit(githubModel).isCorrectlyLinkedAndEstimated();
 
         expect(isLinkedOrAdhoc).toBe(true);
-        // Regression check: before the fix, `getEstimateInProjectItems` returned `null` for "no estimate",
-        // but the caller compared it against `undefined`, so `isEstimated` was always `true`.
         expect(isEstimated).toBe(false);
+    });
+
+    test('is estimated when only a linked issue has the estimate field value set', async () => {
+        const githubModel: Partial<GitHubModel> = {
+            getPullRequest: vi.fn().mockResolvedValue(basePullRequest),
+            getNativelyLinkedIssuesForPullRequest: vi
+                .fn()
+                .mockResolvedValue([{ owner: 'apify', repo: 'apify-proxy', number: 1627 }]),
+            getParentIssue: vi.fn().mockResolvedValue(null),
+            getProjectItemsForPullRequest: vi.fn().mockResolvedValue([{ id: 'pr-item' }]),
+            getProjectItemsForIssue: vi.fn().mockResolvedValue([{ id: 'issue-item' }]),
+            getProjectItemFieldValues: vi.fn().mockImplementation((projectItemId: string) =>
+                Promise.resolve(
+                    projectItemId === 'issue-item'
+                        ? { Estimate: { id: 'field-1', dataType: 'NUMBER', value: 5 } }
+                        : {},
+                ),
+            ),
+        };
+
+        const { isLinkedOrAdhoc, isEstimated } = await makeToolkit(githubModel).isCorrectlyLinkedAndEstimated();
+
+        expect(isLinkedOrAdhoc).toBe(true);
+        expect(isEstimated).toBe(true);
     });
 
     test('is estimated when the estimate field value is set on the pull request itself', async () => {
