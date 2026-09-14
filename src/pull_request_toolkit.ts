@@ -5,6 +5,7 @@ import {
     PRODUCT_ENGINEERING_TEAM_SLUG,
     TEAM_LABEL_PREFIX,
     TEAM_NAME_TO_LABEL,
+    TEAM_NAME_TO_PROJECT_TITLE,
 } from './consts.ts';
 import { UserError } from './errors.ts';
 import type { GitHubModel } from './github_model.ts';
@@ -149,10 +150,11 @@ export class PullRequestToolkit {
 
     /**
      * Finds a GitHub Project board for the given team called "<TEAM_NAME> Team Kanban".
+     * Custom mappings can be defined in TEAM_NAME_TO_PROJECT_TITLE constant.
      */
     public async findProjectForTeam(teamName: string) {
         const projects = await this.githubModel.listProjects(this.pullRequestRepoOwner);
-        const projectName = `${teamName} Team Kanban`;
+        const projectName = TEAM_NAME_TO_PROJECT_TITLE[teamName] || `${teamName} Team Kanban`;
         const project = projects.find((p) => p.title === projectName);
         if (!project) return null;
 
