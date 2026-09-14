@@ -44,13 +44,15 @@ describe('isCorrectlyLinkedAndEstimated', () => {
             getParentIssue: vi.fn().mockResolvedValue(null),
             getProjectItemsForPullRequest: vi.fn().mockResolvedValue([{ id: 'pr-item' }]),
             getProjectItemsForIssue: vi.fn().mockResolvedValue([{ id: 'issue-item' }]),
-            getProjectItemFieldValues: vi.fn().mockImplementation((projectItemId: string) =>
-                Promise.resolve(
-                    projectItemId === 'issue-item'
-                        ? { Estimate: { id: 'field-1', dataType: 'NUMBER', value: 5 } }
-                        : {},
+            getProjectItemFieldValues: vi
+                .fn()
+                .mockImplementation((projectItemId: string) =>
+                    Promise.resolve(
+                        projectItemId === 'issue-item'
+                            ? { Estimate: { id: 'field-1', dataType: 'NUMBER', value: 5 } }
+                            : {},
+                    ),
                 ),
-            ),
         };
 
         const { isLinkedOrAdhoc, isEstimated } = await makeToolkit(githubModel).isCorrectlyLinkedAndEstimated();
