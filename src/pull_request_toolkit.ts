@@ -575,7 +575,9 @@ export class PullRequestToolkit {
         ];
         for (const projectItem of projectItems) {
             const estimate = await this.getEstimateInProjectItems(projectItem.id);
-            if (estimate !== undefined) {
+            // `getEstimateInProjectItems` returns `null` (not `undefined`) when no estimate is set,
+            // so comparing against `undefined` here would always be true and skip the check entirely.
+            if (estimate !== null) {
                 return true;
             }
         }
