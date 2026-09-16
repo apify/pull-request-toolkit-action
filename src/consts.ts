@@ -38,6 +38,7 @@ export const KNOWN_BOT_USERS: readonly string[] = [
     'dependabot[bot]',
     'renovate[bot]',
     'copilot',
+    'apify-deps[bot]',
 ];
 
 // Excludes the team from correct linking and estimate checks.

@@ -1,4 +1,5 @@
 import {
+    KNOWN_BOT_USERS,
     LINKING_CHECK_RETRIES,
     LINKING_CHECK_DELAY_MILLIS,
     SKIP_LINKING_AND_ESTIMATE_CHECKS_FOR_TEAMS,
@@ -32,6 +33,14 @@ export async function main({
             return;
         }
         core.info('Pull request is from an Apify organization, not from an external fork.');
+
+        const isBotAuthor = KNOWN_BOT_USERS.some(
+            (bot) => bot.toLowerCase() === pullRequestFromContext.user.login.toLowerCase(),
+        );
+        if (isBotAuthor) {
+            core.info(`Skipping toolkit action for a pull request from bot user: ${pullRequestFromContext.user.login}`);
+            return;
+        }
 
         // This secret is not provided for pull requests from forks, but we have skipped those already.
         // If it is missing at this point, the action is misconfigured and we should fail.
