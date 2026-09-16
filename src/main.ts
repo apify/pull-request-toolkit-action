@@ -1,4 +1,5 @@
 import {
+    DEPENDABOT_USER,
     LINKING_CHECK_RETRIES,
     LINKING_CHECK_DELAY_MILLIS,
     SKIP_LINKING_AND_ESTIMATE_CHECKS_FOR_TEAMS,
@@ -33,7 +34,13 @@ export async function main({
         }
         core.info('Pull request is from an Apify organization, not from an external fork.');
 
-        // This secret is not provided for pull requests from forks, but we have skipped those already.
+        // Workflow runs triggered by Dependabot use the Dependabot secret store, so the Actions secrets below are empty.
+        if (pullRequestFromContext.user.login.toLowerCase() === DEPENDABOT_USER) {
+            core.info('Skipping toolkit action for a pull request from Dependabot.');
+            return;
+        }
+
+        // This secret is not provided for pull requests from forks or from Dependabot, but we have skipped those already.
         // If it is missing at this point, the action is misconfigured and we should fail.
         if (!input['org-github-token']) throw new Error('Missing org-github-token input!');
         const orgOctokit = getOctokit(input['org-github-token'], { retry: { enabled: true }, request: { retries: 3 } });
