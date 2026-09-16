@@ -32,14 +32,13 @@ export const STATUS_FIELD_VALUES = {
     CLOSED: 'Closed',
 } as const;
 
-export const DEPENDABOT_USER = 'dependabot[bot]';
-
 export const KNOWN_BOT_USERS: readonly string[] = [
     'apify-service-account',
     'github-actions[bot]',
-    DEPENDABOT_USER,
+    'dependabot[bot]',
     'renovate[bot]',
     'copilot',
+    'apify-deps[bot]',
 ];
 
 // Excludes the team from correct linking and estimate checks.

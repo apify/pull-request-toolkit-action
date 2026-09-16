@@ -1,5 +1,5 @@
 import {
-    DEPENDABOT_USER,
+    KNOWN_BOT_USERS,
     LINKING_CHECK_RETRIES,
     LINKING_CHECK_DELAY_MILLIS,
     SKIP_LINKING_AND_ESTIMATE_CHECKS_FOR_TEAMS,
@@ -34,8 +34,11 @@ export async function main({
         }
         core.info('Pull request is from an Apify organization, not from an external fork.');
 
-        if (pullRequestFromContext.user.login.toLowerCase() === DEPENDABOT_USER) {
-            core.info('Skipping toolkit action for a pull request from Dependabot.');
+        const isBotAuthor = KNOWN_BOT_USERS.some(
+            (bot) => bot.toLowerCase() === pullRequestFromContext.user.login.toLowerCase(),
+        );
+        if (isBotAuthor) {
+            core.info(`Skipping toolkit action for a pull request from bot user: ${pullRequestFromContext.user.login}`);
             return;
         }
 
