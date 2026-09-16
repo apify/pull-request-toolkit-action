@@ -10,6 +10,12 @@ export const TEAM_LABEL_PREFIX = 't-';
 export const TEAM_NAME_TO_LABEL: { [name: string]: string } = {
     Infrastructure: 't-infra',
 };
+
+// Project boards are found by the "<TEAM_NAME> Team Kanban" convention. A team whose board
+// carries a different name needs an entry here, or its board is silently not found.
+export const TEAM_NAME_TO_PROJECT_TITLE: { [name: string]: string } = {
+    Web: 'Acquisition Team Kanban',
+};
 export const PROJECT_FIELD_NAMES = {
     ESTIMATE: 'Estimate',
     SPRINT: 'Sprint',
