@@ -15,7 +15,7 @@ This action automates a couple of processes connected with the management of Git
 
 The linkage and estimation checks are retried every 15 seconds for 2 minutes so that the user can set them up after the pull request is created without this action failing.
 
-The action skips pull requests that come from external forks, that do not target the repository's default branch, or whose creator is not a member of any Product Engineering team. Teams listed in `SKIP_LINKING_AND_ESTIMATE_CHECKS_FOR_TEAMS` in [`src/consts.ts`](src/consts.ts) are exempt from the linking and estimate checks.
+The action skips pull requests that come from external forks, that are closed, that do not target the repository's default branch, or whose creator is not a member of any Product Engineering team. Teams listed in `SKIP_LINKING_AND_ESTIMATE_CHECKS_FOR_TEAMS` in [`src/consts.ts`](src/consts.ts) are exempt from the linking and estimate checks.
 
 ## Action input
 

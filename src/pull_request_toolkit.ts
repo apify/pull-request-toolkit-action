@@ -82,6 +82,14 @@ export class PullRequestToolkit {
     }
 
     /**
+     * Checks whether the pull request is closed, merged or not.
+     */
+    public async isClosed(): Promise<boolean> {
+        const pullRequest = await this.getPullRequest();
+        return pullRequest.state === 'closed';
+    }
+
+    /**
      * Finds the human creator of the pull request, falling back to a human assignee if it was created by a bot.
      */
     public async getHumanCreator(): Promise<string | null> {

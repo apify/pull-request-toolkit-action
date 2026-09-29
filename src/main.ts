@@ -85,6 +85,12 @@ export async function main({
             await pullRequestToolkit.closeIssuesMentionedInPullRequestBody();
         }
 
+        // A closed pull request belongs in "Closed", the status set below would move it back to "Pull Request".
+        if (await pullRequestToolkit.isClosed()) {
+            core.info('Pull request is closed. Skipping toolkit action.');
+            return;
+        }
+
         // Skip when the pull request is not into the default branch. We don't want to run this on releases or pull request chains.
         if (!(await pullRequestToolkit.isToDefaultBranch())) {
             core.info(`Skipping toolkit action for pull request not into the default branch.`);
