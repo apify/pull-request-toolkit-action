@@ -50,7 +50,7 @@ describe('main', () => {
             draft: false,
             user: { login: 'VojtaM39' },
             base: { ref: 'master', repo: { default_branch: 'master' } },
-        } as never);
+        } as unknown as Awaited<ReturnType<GitHubModel['getPullRequest']>>);
         vi.spyOn(PullRequestToolkit.prototype, 'isPullRequestToolkitRequiredForRepo').mockResolvedValue(true);
         vi.spyOn(PullRequestToolkit.prototype, 'linkIssuesMentionedInPullRequestBody').mockResolvedValue();
         const closeIssues = vi
