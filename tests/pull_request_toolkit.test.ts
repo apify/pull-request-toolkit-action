@@ -7,6 +7,7 @@ import type { Core } from '../src/types.ts';
 
 const mockCore = {
     info: vi.fn(),
+    warning: vi.fn(),
     error: vi.fn(),
 } as unknown as Core;
 
@@ -105,5 +106,61 @@ describe('isCorrectlyLinkedAndEstimated', () => {
 
         expect(isLinkedOrAdhoc).toBe(false);
         expect(isEstimated).toBe(false);
+    });
+});
+
+describe('linkIssuesMentionedInPullRequestBody', () => {
+    const partOfPullRequest = { ...basePullRequest, node_id: 'PR_1', body: 'Part of #100\nPart of #200' };
+
+    function makeLinkingGithubModel(overrides: Partial<GitHubModel> = {}) {
+        return makeGithubModel({
+            getPullRequest: vi.fn().mockResolvedValue(partOfPullRequest),
+            getIssue: vi
+                .fn()
+                .mockImplementation((_owner: string, _repo: string, number: number) =>
+                    Promise.resolve({ node_id: `I_${number}` }),
+                ),
+            linkPullRequestToIssue: vi.fn().mockResolvedValue({}),
+            ...overrides,
+        });
+    }
+
+    test('skips issues that are already linked', async () => {
+        const githubModel = makeLinkingGithubModel({
+            getNativelyLinkedIssuesForPullRequest: vi
+                .fn()
+                .mockResolvedValue([{ owner: 'apify', repo: 'apify-proxy', number: 100 }]),
+        });
+
+        await makeToolkit(githubModel).linkIssuesMentionedInPullRequestBody();
+
+        expect(githubModel.linkPullRequestToIssue).toHaveBeenCalledTimes(1);
+        expect(githubModel.linkPullRequestToIssue).toHaveBeenCalledWith('I_200', 'PR_1');
+    });
+
+    test('continues with a warning when an issue exceeds the manual reference limit', async () => {
+        const githubModel = makeLinkingGithubModel({
+            linkPullRequestToIssue: vi
+                .fn()
+                .mockRejectedValueOnce(
+                    new Error(
+                        'Request failed due to following response errors:\n - Issue exceeds manual reference limit',
+                    ),
+                )
+                .mockResolvedValueOnce({}),
+        });
+
+        await expect(makeToolkit(githubModel).linkIssuesMentionedInPullRequestBody()).resolves.toBeUndefined();
+
+        expect(githubModel.linkPullRequestToIssue).toHaveBeenCalledTimes(2);
+        expect(mockCore.warning).toHaveBeenCalledWith(expect.stringContaining('apify/apify-proxy#100'));
+    });
+
+    test('rethrows other linking errors', async () => {
+        const githubModel = makeLinkingGithubModel({
+            linkPullRequestToIssue: vi.fn().mockRejectedValue(new Error('Something else')),
+        });
+
+        await expect(makeToolkit(githubModel).linkIssuesMentionedInPullRequestBody()).rejects.toThrow('Something else');
     });
 });

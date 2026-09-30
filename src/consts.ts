@@ -44,5 +44,8 @@ export const KNOWN_BOT_USERS: readonly string[] = [
 // Excludes the team from correct linking and estimate checks.
 export const SKIP_LINKING_AND_ESTIMATE_CHECKS_FOR_TEAMS: readonly string[] = ['Docs'];
 
+// Error returned by the `addCloseIssueReferences` mutation when the issue has too many manually linked pull requests.
+export const MANUAL_REFERENCE_LIMIT_ERROR_MESSAGE = 'Issue exceeds manual reference limit';
+
 export const LINKING_CHECK_RETRIES = 8;
 export const LINKING_CHECK_DELAY_MILLIS = 15 * 1000;
