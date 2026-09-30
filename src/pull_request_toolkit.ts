@@ -2,6 +2,7 @@ import {
     PROJECT_FIELD_NAMES,
     KNOWN_BOT_USERS,
     LABELS,
+    MANUAL_REFERENCE_LIMIT_ERROR_MESSAGE,
     PRODUCT_ENGINEERING_TEAM_SLUG,
     TEAM_LABEL_PREFIX,
     TEAM_NAME_TO_LABEL,
@@ -512,7 +513,21 @@ export class PullRequestToolkit {
         const mentionedIssues = await this.getIssuesMentionedInPullRequestBody();
 
         // Native references are linked automatically by GitHub
-        const issuesToLink = mentionedIssues.filter((issue) => !issue.isNativeReference);
+        const nonNativeReferences = mentionedIssues.filter((issue) => !issue.isNativeReference);
+        if (nonNativeReferences.length === 0) return;
+
+        const alreadyLinkedIssues = await this.githubModel.getNativelyLinkedIssuesForPullRequest(
+            this.pullRequestRepoOwner,
+            this.pullRequestRepoName,
+            this.pullRequestNumber,
+        );
+        const issuesToLink = this.deduplicateIssues(nonNativeReferences).filter(
+            (issue) =>
+                !alreadyLinkedIssues.some(
+                    (linked) =>
+                        linked.owner === issue.owner && linked.repo === issue.repo && linked.number === issue.number,
+                ),
+        );
         if (issuesToLink.length === 0) return;
 
         const pullRequest = await this.getPullRequest();
@@ -523,7 +538,19 @@ export class PullRequestToolkit {
                 issueReference.repo,
                 issueReference.number,
             );
-            await this.githubModel.linkPullRequestToIssue(issue.node_id, pullRequest.node_id);
+            try {
+                await this.githubModel.linkPullRequestToIssue(issue.node_id, pullRequest.node_id);
+            } catch (error) {
+                // GitHub allows only a limited number of manually linked pull requests per issue. The link only
+                // affects the issue's Development sidebar; the linking check reads the body references directly.
+                if (error instanceof Error && error.message.includes(MANUAL_REFERENCE_LIMIT_ERROR_MESSAGE)) {
+                    this.core.warning(
+                        `Could not link issue ${issueReference.owner}/${issueReference.repo}#${issueReference.number}, it already has the maximum number of manually linked pull requests.`,
+                    );
+                    continue;
+                }
+                throw error;
+            }
         }
 
         this.core.info('Linked issues mentioned in the pull request body.');
