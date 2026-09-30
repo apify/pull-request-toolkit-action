@@ -82,7 +82,8 @@ export class PullRequestToolkit {
     }
 
     /**
-     * Checks whether the pull request is closed, merged or not.
+     * Checks whether the pull request is closed, including merged ones:
+     * the REST API has no merged state, a merged pull request is `state: 'closed'` with `merged: true`.
      */
     public async isClosed(): Promise<boolean> {
         const pullRequest = await this.getPullRequest();
