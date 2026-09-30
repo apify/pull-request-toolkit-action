@@ -83,6 +83,15 @@ export class PullRequestToolkit {
     }
 
     /**
+     * Checks whether the pull request is closed, including merged ones:
+     * the REST API has no merged state, a merged pull request is `state: 'closed'` with `merged: true`.
+     */
+    public async isClosed(): Promise<boolean> {
+        const pullRequest = await this.getPullRequest();
+        return pullRequest.state === 'closed';
+    }
+
+    /**
      * Finds the human creator of the pull request, falling back to a human assignee if it was created by a bot.
      */
     public async getHumanCreator(): Promise<string | null> {
