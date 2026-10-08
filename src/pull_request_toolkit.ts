@@ -19,6 +19,7 @@ import type {
     IterationField,
     SingleSelectField,
 } from './types.ts';
+import { asyncFilter } from './utils.ts';
 
 /**
  * A toolkit for working with pull requests with Apify-specific requirements.
@@ -504,7 +505,7 @@ export class PullRequestToolkit {
             'ig',
         );
 
-        return [
+        const mentions = [
             ...pullRequest.body.matchAll(fullRegexp).map((match) => ({
                 isClosingReference: closingReferenceRegexp.test(match.groups!.reference),
                 isNativeReference: closingReferenceRegexp.test(match.groups!.reference), // Native GitHub references are all closing
@@ -513,6 +514,19 @@ export class PullRequestToolkit {
                 number: parseInt(match.groups!.number, 10),
             })),
         ];
+
+        // Keep only issues, filter out pull requests
+        const mentionedIssues = asyncFilter(mentions, async (mention) => {
+            const issue = await this.githubModel.getIssue(mention.owner, mention.repo, mention.number);
+            if (issue.pull_request) {
+                this.core.warning(
+                    `${mention.owner}/${mention.repo}#${mention.number} mentioned in the pull request body is also a pull request, not an issue.`,
+                );
+            }
+            return !issue.pull_request;
+        });
+
+        return mentionedIssues;
     }
 
     /**
@@ -547,12 +561,6 @@ export class PullRequestToolkit {
                 issueReference.repo,
                 issueReference.number,
             );
-            if (issue.pull_request) {
-                this.core.warning(
-                    `${issueReference.owner}/${issueReference.repo}#${issueReference.number} mentioned in PR body is a pull request and cannot be linked as an issue.`,
-                );
-                continue;
-            }
 
             try {
                 await this.githubModel.linkPullRequestToIssue(issue.node_id, pullRequest.node_id);
