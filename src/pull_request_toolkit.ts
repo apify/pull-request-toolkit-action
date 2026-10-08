@@ -547,6 +547,13 @@ export class PullRequestToolkit {
                 issueReference.repo,
                 issueReference.number,
             );
+            if (issue.pull_request) {
+                this.core.warning(
+                    `${issueReference.owner}/${issueReference.repo}#${issueReference.number} mentioned in PR body is a pull request and cannot be linked as an issue.`,
+                );
+                continue;
+            }
+
             try {
                 await this.githubModel.linkPullRequestToIssue(issue.node_id, pullRequest.node_id);
             } catch (error) {

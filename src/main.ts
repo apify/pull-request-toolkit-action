@@ -25,6 +25,9 @@ export async function main({
     try {
         const pullRequestFromContext = context.payload.pull_request;
         if (!pullRequestFromContext) throw new UserError('This action works only for pull requests!');
+        core.info(
+            `Processing pull request https://github.com/${pullRequestFromContext.base.repo.owner.login}/${pullRequestFromContext.base.repo.name}/pull/${pullRequestFromContext.number}`,
+        );
 
         if (pullRequestFromContext.head.repo.full_name !== pullRequestFromContext.base.repo.full_name) {
             core.info(
