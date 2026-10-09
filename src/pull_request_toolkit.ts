@@ -497,9 +497,10 @@ export class PullRequestToolkit {
         if (!pullRequest.body) return [];
 
         // These are native GitHub reference phrases which cause an issue to be automatically linked
+        // No `g` flag, since `.test()` with it is stateful and fails every other call on the same string
         const closingReferenceRegexp = new RegExp(
             '(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)',
-            'ig',
+            'i',
         );
         // These are non-native reference phrases (an Apify extension)
         const nonClosingReferenceRegexp = new RegExp('(part of)', 'ig');
