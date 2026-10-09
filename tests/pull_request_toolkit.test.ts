@@ -164,3 +164,36 @@ describe('linkIssuesMentionedInPullRequestBody', () => {
         await expect(makeToolkit(githubModel).linkIssuesMentionedInPullRequestBody()).rejects.toThrow('Something else');
     });
 });
+
+describe('closeIssuesMentionedInPullRequestBody', () => {
+    async function closedIssuesFor(body: string) {
+        const githubModel = makeGithubModel({
+            getPullRequest: vi.fn().mockResolvedValue({ ...basePullRequest, body }),
+            getIssue: vi.fn().mockResolvedValue({}),
+            closeIssueAsCompleted: vi.fn().mockResolvedValue(undefined),
+        });
+        await makeToolkit(githubModel).closeIssuesMentionedInPullRequestBody();
+        return vi.mocked(githubModel.closeIssueAsCompleted!).mock.calls;
+    }
+
+    test.each([
+        ['Closes #100', ['apify', 'apify-proxy', 100]],
+        ['Closes: #100', ['apify', 'apify-proxy', 100]],
+        ['Fixes: https://github.com/apify/apify-core/issues/100', ['apify', 'apify-core', 100]],
+        ['Closes [#100](https://github.com/apify/apify-core/issues/100)', ['apify', 'apify-core', 100]],
+        ['closes [apify-core#100](https://github.com/apify/apify-core/issues/100)', ['apify', 'apify-core', 100]],
+        [
+            'Resolves: [apify/apify-core#100](https://github.com/apify/apify-core/issues/100)',
+            ['apify', 'apify-core', 100],
+        ],
+    ])('closes the issue referenced by "%s"', async (body, expected) => {
+        expect(await closedIssuesFor(body)).toEqual([expected]);
+    });
+
+    test.each(['Part of #100', 'Part of: #100', 'Part of [#100](https://github.com/apify/apify-core/issues/100)'])(
+        'does not close the issue referenced by "%s"',
+        async (body) => {
+            expect(await closedIssuesFor(body)).toEqual([]);
+        },
+    );
+});

@@ -499,9 +499,11 @@ export class PullRequestToolkit {
             'ig',
         );
         const issueShortRefRegexp = new RegExp('((?<owner>[^/\\s]+)/(?<repo>[^/\\s]+))?#(?<number>\\d+)', 'ig');
+        // The link text may omit the owner (e.g. `[#123](url)`), so the issue is taken from the URL
+        const issueMarkdownLinkRefRegexp = new RegExp(`\\[[^\\]\\n]*\\]\\(${issueUrlRefRegexp.source}\\)`, 'ig');
 
         const fullRegexp = new RegExp(
-            `${referenceRegexp.source}\\s+(${issueUrlRefRegexp.source}|${issueShortRefRegexp.source})`,
+            `${referenceRegexp.source}:?\\s+(${issueMarkdownLinkRefRegexp.source}|${issueUrlRefRegexp.source}|${issueShortRefRegexp.source})`,
             'ig',
         );
 

@@ -9,11 +9,11 @@ function makeContext(pullRequest: Record<string, unknown>) {
     return { payload: { pull_request: pullRequest } } as unknown as Context;
 }
 
-function makePullRequest(creatorLogin: string) {
+function makePullRequest(creatorLogin: string, headRepoFullName = 'apify/proxy-chain') {
     return {
         number: 1652,
         user: { login: creatorLogin },
-        head: { repo: { full_name: 'apify/proxy-chain' } },
+        head: { repo: { full_name: headRepoFullName } },
         base: { repo: { full_name: 'apify/proxy-chain', owner: { login: 'apify' }, name: 'proxy-chain' } },
     };
 }
@@ -76,5 +76,68 @@ describe('main', () => {
         expect(closeIssues).toHaveBeenCalled();
         expect(findProject).not.toHaveBeenCalled();
         expect(core.setFailed).not.toHaveBeenCalled();
+    });
+
+    describe('closing issues referenced by a merged pull request', () => {
+        function mockMergedPullRequest({ baseRef = 'master' } = {}) {
+            vi.spyOn(GitHubModel.prototype, 'getPullRequest').mockResolvedValue({
+                state: 'closed',
+                merged: true,
+                draft: false,
+                base: { ref: baseRef, repo: { default_branch: 'master' } },
+            } as unknown as Awaited<ReturnType<GitHubModel['getPullRequest']>>);
+            vi.spyOn(PullRequestToolkit.prototype, 'isPullRequestToolkitRequiredForRepo').mockResolvedValue(true);
+            vi.spyOn(PullRequestToolkit.prototype, 'linkIssuesMentionedInPullRequestBody').mockResolvedValue();
+            return vi.spyOn(PullRequestToolkit.prototype, 'closeIssuesMentionedInPullRequestBody').mockResolvedValue();
+        }
+
+        const input = { 'org-github-token': 'token', 'apify-api-token': 'token' };
+
+        test.each([
+            ['from a fork', makePullRequest('daveomri', 'daveomri/proxy-chain')],
+            ['from a bot', makePullRequest('apify-service-account')],
+        ])('closes them for a pull request %s', async (_, pullRequest) => {
+            const closeIssues = mockMergedPullRequest();
+            const core = { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;
+
+            await main({
+                getOctokit: vi.fn() as unknown as GetOctokitFunction,
+                context: makeContext(pullRequest),
+                core,
+                input,
+            });
+
+            expect(closeIssues).toHaveBeenCalled();
+            expect(core.setFailed).not.toHaveBeenCalled();
+        });
+
+        test('does not close them for a pull request merged into a non-default branch', async () => {
+            const closeIssues = mockMergedPullRequest({ baseRef: 'feature' });
+            const core = { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;
+
+            await main({
+                getOctokit: vi.fn() as unknown as GetOctokitFunction,
+                context: makeContext(makePullRequest('VojtaM39')),
+                core,
+                input,
+            });
+
+            expect(closeIssues).not.toHaveBeenCalled();
+        });
+
+        test('skips a pull request from a fork without failing when the secrets are not available', async () => {
+            const core = { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;
+            const getOctokit = vi.fn() as unknown as GetOctokitFunction;
+
+            await main({
+                getOctokit,
+                context: makeContext(makePullRequest('daveomri', 'daveomri/proxy-chain')),
+                core,
+                input: {},
+            });
+
+            expect(getOctokit).not.toHaveBeenCalled();
+            expect(core.setFailed).not.toHaveBeenCalled();
+        });
     });
 });
