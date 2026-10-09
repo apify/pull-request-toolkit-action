@@ -507,8 +507,11 @@ export class PullRequestToolkit {
             'ig',
         );
 
+        // Like GitHub, ignore references inside code blocks and inline code, which are usually examples
+        const bodyWithoutCode = pullRequest.body.replace(/```[\s\S]*?```|`[^`\n]*`/g, '');
+
         const mentions = [
-            ...pullRequest.body.matchAll(fullRegexp).map((match) => ({
+            ...bodyWithoutCode.matchAll(fullRegexp).map((match) => ({
                 isClosingReference: closingReferenceRegexp.test(match.groups!.reference),
                 isNativeReference: closingReferenceRegexp.test(match.groups!.reference), // Native GitHub references are all closing
                 owner: match.groups!.owner || pullRequest.base.repo.owner.login,
@@ -519,7 +522,17 @@ export class PullRequestToolkit {
 
         // Keep only issues, filter out pull requests
         const mentionedIssues = asyncFilter(mentions, async (mention) => {
-            const issue = await this.githubModel.getIssue(mention.owner, mention.repo, mention.number);
+            let issue;
+            try {
+                issue = await this.githubModel.getIssue(mention.owner, mention.repo, mention.number);
+            } catch (error) {
+                // Like GitHub, ignore references to issues that don't exist or that we have no access to
+                if ((error as { status?: number }).status !== 404) throw error;
+                this.core.warning(
+                    `${mention.owner}/${mention.repo}#${mention.number} mentioned in the pull request body was not found.`,
+                );
+                return false;
+            }
             if (issue.pull_request) {
                 this.core.warning(
                     `${mention.owner}/${mention.repo}#${mention.number} mentioned in the pull request body is also a pull request, not an issue.`,
