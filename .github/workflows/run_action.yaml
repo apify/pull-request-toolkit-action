@@ -1,14 +1,15 @@
 name: Apify Pull Request Toolkit
 
 on:
-  # `pull_request_target` provides the secrets also to pull requests from forks, so that their referenced issues get closed on merge.
-  # It is safe because the pull request code is never checked out, only the action from `main` runs.
+  # Gives fork runs the secrets to close their issues on merge; safe since no pull request code is checked out.
   pull_request_target:
     types: ['opened', 'reopened', 'synchronize', 'labeled', 'unlabeled', 'edited', 'ready_for_review', 'closed']
 
+# The action uses only the org token, so `GITHUB_TOKEN` (writable under `pull_request_target`) gets no permissions.
+permissions: {}
+
 concurrency: # This is to make sure that it's executed only for the most recent changes of the pull request.
-  # `github.ref` is the base branch for `pull_request_target`, so the pull request number has to be used instead.
-  # The `closed` run is the only one that closes issues of fork pull requests, so it must never be cancelled.
+  # Keyed by pull request (`github.ref` is the base branch here); the `closed` run gets its own group to never be cancelled.
   group: pull-request-toolkit-${{ github.event.pull_request.number }}${{ github.event.action == 'closed' && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 

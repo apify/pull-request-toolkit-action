@@ -29,7 +29,8 @@ export async function main({
             `Processing pull request https://github.com/${pullRequestFromContext.base.repo.owner.login}/${pullRequestFromContext.base.repo.name}/pull/${pullRequestFromContext.number}`,
         );
 
-        const isFromFork = pullRequestFromContext.head.repo.full_name !== pullRequestFromContext.base.repo.full_name;
+        // `head.repo` is null once the fork is deleted
+        const isFromFork = pullRequestFromContext.head.repo?.full_name !== pullRequestFromContext.base.repo.full_name;
         const isBotAuthor = KNOWN_BOT_USERS.some(
             (bot) => bot.toLowerCase() === pullRequestFromContext.user.login.toLowerCase(),
         );
@@ -68,17 +69,21 @@ export async function main({
         }
         core.info('Pull request toolkit is required for this repository. Proceeding.');
 
-        // Replaces GitHub's built-in auto-close, which is disabled because it also closes manually linked issues.
-        // Fork authors control the body even after the merge, so forks only close issues in their own repository,
-        // and only on the merge event or a re-run (which needs write access).
-        const isTrustedRun = !isFromFork || context.payload.action === 'closed' || context.runAttempt > 1;
+        // Fork authors can edit the body after the merge, so only their merge event or a re-run (needs write access) counts.
+        const isMergeEvent = context.payload.action === 'closed';
+        const isTrustedRun = !isFromFork || isMergeEvent || context.runAttempt > 1;
+        // Replaces GitHub's auto-close (disabled as it also closes manually linked issues); forks close only this repository's issues.
         if (isTrustedRun && (await pullRequestToolkit.isMerged()) && (await pullRequestToolkit.isToDefaultBranch())) {
-            await pullRequestToolkit.closeIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository: isFromFork });
+            await pullRequestToolkit.closeIssuesMentionedInPullRequestBody({
+                onlyInPullRequestRepository: isFromFork,
+                // The fetched body may already be edited by the fork author, the event carries the one from the merge
+                body: isFromFork && isMergeEvent ? (pullRequestFromContext.body ?? '') : undefined,
+            });
         }
 
         if (isFromFork) {
             core.info(
-                `Skipping toolkit action for pull request from external fork: ${pullRequestFromContext.head.repo.full_name}`,
+                `Skipping toolkit action for pull request from external fork: ${pullRequestFromContext.head.repo?.full_name ?? 'deleted repository'}`,
             );
             return;
         }

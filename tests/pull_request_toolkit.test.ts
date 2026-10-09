@@ -197,6 +197,7 @@ describe('closeIssuesMentionedInPullRequestBody', () => {
         'Accepts `Closes: #100` now',
         '```\nCloses #100\n```',
         '~~~\nCloses #100\n~~~',
+        '<!-- Closes #100 -->',
         'Unresolved: #100',
         'Prefixes #100',
     ])('does not close the issue referenced by "%s"', async (body) => {

@@ -126,6 +126,11 @@ describe('main', () => {
                 makePullRequest('daveomri', 'daveomri/proxy-chain'),
                 true,
             ],
+            [
+                'only in its own repository for a pull request from a deleted fork',
+                { ...makePullRequest('daveomri'), head: { repo: null } },
+                true,
+            ],
             ['in any repository for a pull request from the organization', makePullRequest('VojtaM39'), false],
         ])('closes them %s', async (_, pullRequest, onlyInPullRequestRepository) => {
             const closeIssues = mockMergedPullRequest();
@@ -137,7 +142,36 @@ describe('main', () => {
                 input,
             });
 
-            expect(closeIssues).toHaveBeenCalledWith({ onlyInPullRequestRepository });
+            expect(closeIssues).toHaveBeenCalledWith(expect.objectContaining({ onlyInPullRequestRepository }));
+        });
+
+        test('closes the issues referenced at the merge of a pull request from a fork, not after editing its body', async () => {
+            vi.spyOn(GitHubModel.prototype, 'getPullRequest').mockResolvedValue({
+                state: 'closed',
+                merged: true,
+                body: 'Closes #2',
+                base: {
+                    ref: 'master',
+                    repo: { default_branch: 'master', owner: { login: 'apify' }, name: 'proxy-chain' },
+                },
+            } as unknown as Awaited<ReturnType<GitHubModel['getPullRequest']>>);
+            vi.spyOn(GitHubModel.prototype, 'getIssue').mockResolvedValue(
+                {} as Awaited<ReturnType<GitHubModel['getIssue']>>,
+            );
+            const closeIssue = vi.spyOn(GitHubModel.prototype, 'closeIssueAsCompleted').mockResolvedValue();
+            vi.spyOn(PullRequestToolkit.prototype, 'isPullRequestToolkitRequiredForRepo').mockResolvedValue(true);
+
+            await main({
+                getOctokit: vi.fn() as unknown as GetOctokitFunction,
+                context: makeContext(
+                    { ...makePullRequest('daveomri', 'daveomri/proxy-chain'), body: 'Closes #1' },
+                    { action: 'closed' },
+                ),
+                core: { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core,
+                input,
+            });
+
+            expect(closeIssue).toHaveBeenCalledExactlyOnceWith('apify', 'proxy-chain', 1);
         });
 
         test('does not close them for a pull request from a fork whose body is edited after the merge', async () => {
