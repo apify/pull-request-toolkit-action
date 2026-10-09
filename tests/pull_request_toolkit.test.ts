@@ -125,6 +125,18 @@ describe('linkIssuesMentionedInPullRequestBody', () => {
         });
     }
 
+    test('links only issues in the pull request repository when asked to', async () => {
+        const githubModel = makeLinkingGithubModel({
+            getPullRequest: vi
+                .fn()
+                .mockResolvedValue({ ...partOfPullRequest, body: 'Part of #100\nPart of apify/apify-core#200' }),
+        });
+
+        await makeToolkit(githubModel).linkIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository: true });
+
+        expect(githubModel.linkPullRequestToIssue).toHaveBeenCalledExactlyOnceWith('I_100', 'PR_1');
+    });
+
     test('skips issues that are already linked', async () => {
         const githubModel = makeLinkingGithubModel({
             getNativelyLinkedIssuesForPullRequest: vi
@@ -162,5 +174,95 @@ describe('linkIssuesMentionedInPullRequestBody', () => {
         });
 
         await expect(makeToolkit(githubModel).linkIssuesMentionedInPullRequestBody()).rejects.toThrow('Something else');
+    });
+});
+
+describe('closeIssuesMentionedInPullRequestBody', () => {
+    async function closedIssuesFor(body: string) {
+        const githubModel = makeGithubModel({
+            getPullRequest: vi.fn().mockResolvedValue({ ...basePullRequest, body }),
+            getIssue: vi.fn().mockResolvedValue({}),
+            closeIssueAsCompleted: vi.fn().mockResolvedValue(undefined),
+        });
+        await makeToolkit(githubModel).closeIssuesMentionedInPullRequestBody();
+        return vi.mocked(githubModel.closeIssueAsCompleted!).mock.calls;
+    }
+
+    test.each([
+        ['Closes #100', ['apify', 'apify-proxy', 100]],
+        ['Closes: #100', ['apify', 'apify-proxy', 100]],
+        ['Fixes: https://github.com/apify/apify-core/issues/100', ['apify', 'apify-core', 100]],
+        ['Closes [#100](https://github.com/apify/apify-core/issues/100)', ['apify', 'apify-core', 100]],
+        ['closes [apify-core#100](https://github.com/apify/apify-core/issues/100)', ['apify', 'apify-core', 100]],
+        [
+            'Resolves: [apify/apify-core#100](https://github.com/apify/apify-core/issues/100)',
+            ['apify', 'apify-core', 100],
+        ],
+    ])('closes the issue referenced by "%s"', async (body, expected) => {
+        expect(await closedIssuesFor(body)).toEqual([expected]);
+    });
+
+    test.each([
+        'Part of #100',
+        'Part of: #100',
+        'Part of [#100](https://github.com/apify/apify-core/issues/100)',
+        'Accepts `Closes: #100` now',
+        '```\nCloses #100\n```',
+        '~~~\nCloses #100\n~~~',
+        '<!-- Closes #100 -->',
+        'Unresolved: #100',
+        'Prefixes #100',
+    ])('does not close the issue referenced by "%s"', async (body) => {
+        expect(await closedIssuesFor(body)).toEqual([]);
+    });
+
+    test('closes only issues in the pull request repository when asked to, without looking up the others', async () => {
+        const githubModel = makeGithubModel({
+            getPullRequest: vi
+                .fn()
+                .mockResolvedValue({ ...basePullRequest, body: 'Closes #100\nCloses apify/apify-core#200' }),
+            getIssue: vi.fn().mockResolvedValue({}),
+            closeIssueAsCompleted: vi.fn().mockResolvedValue(undefined),
+        });
+
+        await makeToolkit(githubModel).closeIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository: true });
+
+        expect(githubModel.closeIssueAsCompleted).toHaveBeenCalledExactlyOnceWith('apify', 'apify-proxy', 100);
+        expect(githubModel.getIssue).toHaveBeenCalledExactlyOnceWith('apify', 'apify-proxy', 100);
+    });
+
+    test.each([404, 410])('skips references to issues that respond with %i and closes the rest', async (status) => {
+        const githubModel = makeGithubModel({
+            getPullRequest: vi.fn().mockResolvedValue({ ...basePullRequest, body: 'Closes #100\nCloses #200' }),
+            getIssue: vi
+                .fn()
+                .mockImplementation((_owner: string, _repo: string, number: number) =>
+                    number === 100
+                        ? Promise.reject(Object.assign(new Error('Not Found'), { status }))
+                        : Promise.resolve({}),
+                ),
+            closeIssueAsCompleted: vi.fn().mockResolvedValue(undefined),
+        });
+
+        await makeToolkit(githubModel).closeIssuesMentionedInPullRequestBody();
+
+        expect(githubModel.closeIssueAsCompleted).toHaveBeenCalledExactlyOnceWith('apify', 'apify-proxy', 200);
+        expect(mockCore.warning).toHaveBeenCalledWith(expect.stringContaining('apify/apify-proxy#100'));
+    });
+});
+
+describe('isBodyEditedAfterMerge', () => {
+    test.each([
+        ['edited after the merge', '2026-10-09T10:05:00Z', true],
+        ['edited before the merge', '2026-10-09T09:55:00Z', false],
+        ['never edited', null, false],
+    ])('detects a body %s', async (_, lastEditedAt, expected) => {
+        const githubModel = makeGithubModel({
+            getPullRequestBodyEditedAndMergedAt: vi
+                .fn()
+                .mockResolvedValue({ lastEditedAt, mergedAt: '2026-10-09T10:00:00Z' }),
+        });
+
+        expect(await makeToolkit(githubModel).isBodyEditedAfterMerge()).toBe(expected);
     });
 });

@@ -72,6 +72,30 @@ export class GitHubModel {
     }
 
     /**
+     * Fetches when the pull request body was last edited and when the pull request was merged.
+     */
+    public async getPullRequestBodyEditedAndMergedAt(
+        owner: string,
+        repo: string,
+        number: number,
+    ): Promise<{ lastEditedAt: string | null; mergedAt: string | null }> {
+        const response = await this.octokit.graphql<{
+            repository: { pullRequest: { lastEditedAt: string | null; mergedAt: string | null } };
+        }>(
+            `query getPullRequestBodyEditedAndMergedAt($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $number) {
+                        lastEditedAt
+                        mergedAt
+                    }
+                }
+            }`,
+            { owner, repo, number },
+        );
+        return response.repository.pullRequest;
+    }
+
+    /**
      * Fetches a pull request.
      */
     public async getPullRequest(owner: string, repo: string, number: number) {

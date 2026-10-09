@@ -76,6 +76,18 @@ export class PullRequestToolkit {
     }
 
     /**
+     * Checks whether the pull request body was edited after the pull request was merged.
+     */
+    public async isBodyEditedAfterMerge(): Promise<boolean> {
+        const { lastEditedAt, mergedAt } = await this.githubModel.getPullRequestBodyEditedAndMergedAt(
+            this.pullRequestRepoOwner,
+            this.pullRequestRepoName,
+            this.pullRequestNumber,
+        );
+        return !!lastEditedAt && !!mergedAt && new Date(lastEditedAt) > new Date(mergedAt);
+    }
+
+    /**
      * Checks whether the pull request is merged.
      */
     public async isMerged(): Promise<boolean> {
@@ -474,8 +486,9 @@ export class PullRequestToolkit {
      * Parses the pull request body for issue-closing references (e.g., "fixes #123") and returns the referenced issues.
      * This is a fallback/addition to `getNativelyLinkedIssuesForPullRequest`, since GitHub's own detection of such
      * references is not always reliable (e.g. references added by editing the body after the pull request creation).
+     * With `onlyInPullRequestRepository`, references to issues in other repositories are ignored.
      */
-    private async getIssuesMentionedInPullRequestBody() {
+    private async getIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository = false } = {}) {
         const pullRequest = await this.githubModel.getPullRequest(
             this.pullRequestRepoOwner,
             this.pullRequestRepoName,
@@ -499,25 +512,48 @@ export class PullRequestToolkit {
             'ig',
         );
         const issueShortRefRegexp = new RegExp('((?<owner>[^/\\s]+)/(?<repo>[^/\\s]+))?#(?<number>\\d+)', 'ig');
+        // The link text may omit the owner (e.g. `[#123](url)`), so the issue is taken from the URL
+        const issueMarkdownLinkRefRegexp = new RegExp(`\\[[^\\]\\n]*\\]\\(${issueUrlRefRegexp.source}\\)`, 'ig');
 
         const fullRegexp = new RegExp(
-            `${referenceRegexp.source}\\s+(${issueUrlRefRegexp.source}|${issueShortRefRegexp.source})`,
+            `\\b${referenceRegexp.source}:?\\s+(${issueMarkdownLinkRefRegexp.source}|${issueUrlRefRegexp.source}|${issueShortRefRegexp.source})`,
             'ig',
         );
 
+        // Ignore references in code (like GitHub, usually examples) and in HTML comments (hidden from reviewers)
+        const bodyWithoutCode = pullRequest.body.replace(
+            /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`|<!--[\s\S]*?-->/g,
+            '',
+        );
+
         const mentions = [
-            ...pullRequest.body.matchAll(fullRegexp).map((match) => ({
+            ...bodyWithoutCode.matchAll(fullRegexp).map((match) => ({
                 isClosingReference: closingReferenceRegexp.test(match.groups!.reference),
                 isNativeReference: closingReferenceRegexp.test(match.groups!.reference), // Native GitHub references are all closing
                 owner: match.groups!.owner || pullRequest.base.repo.owner.login,
                 repo: match.groups!.repo || pullRequest.base.repo.name,
                 number: parseInt(match.groups!.number, 10),
             })),
-        ];
+        ].filter(
+            (mention) =>
+                !onlyInPullRequestRepository ||
+                (mention.owner.toLowerCase() === this.pullRequestRepoOwner.toLowerCase() &&
+                    mention.repo.toLowerCase() === this.pullRequestRepoName.toLowerCase()),
+        );
 
         // Keep only issues, filter out pull requests
         const mentionedIssues = asyncFilter(mentions, async (mention) => {
-            const issue = await this.githubModel.getIssue(mention.owner, mention.repo, mention.number);
+            let issue;
+            try {
+                issue = await this.githubModel.getIssue(mention.owner, mention.repo, mention.number);
+            } catch (error) {
+                // Like GitHub, ignore references to missing (404) or deleted (410) issues, or ones we can't access
+                if (![404, 410].includes((error as { status?: number }).status!)) throw error;
+                this.core.warning(
+                    `${mention.owner}/${mention.repo}#${mention.number} mentioned in the pull request body was not found.`,
+                );
+                return false;
+            }
             if (issue.pull_request) {
                 this.core.warning(
                     `${mention.owner}/${mention.repo}#${mention.number} mentioned in the pull request body is also a pull request, not an issue.`,
@@ -531,9 +567,10 @@ export class PullRequestToolkit {
 
     /**
      * Links all issues mentioned in the pull request body that are not native references.
+     * With `onlyInPullRequestRepository`, references to issues in other repositories are ignored.
      */
-    public async linkIssuesMentionedInPullRequestBody() {
-        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody();
+    public async linkIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository = false } = {}) {
+        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository });
 
         // Native references are linked automatically by GitHub
         const nonNativeReferences = mentionedIssues.filter((issue) => !issue.isNativeReference);
@@ -582,9 +619,10 @@ export class PullRequestToolkit {
 
     /**
      * Closes all issues that are mentioned in the pull request body with a closing reference (e.g., "fixes #123").
+     * With `onlyInPullRequestRepository`, references to issues in other repositories are ignored.
      */
-    public async closeIssuesMentionedInPullRequestBody() {
-        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody();
+    public async closeIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository = false } = {}) {
+        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository });
         const issuesToClose = mentionedIssues.filter((issue) => issue.isClosingReference);
         if (issuesToClose.length === 0) return;
 

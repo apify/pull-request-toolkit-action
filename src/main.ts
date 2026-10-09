@@ -29,24 +29,21 @@ export async function main({
             `Processing pull request https://github.com/${pullRequestFromContext.base.repo.owner.login}/${pullRequestFromContext.base.repo.name}/pull/${pullRequestFromContext.number}`,
         );
 
-        if (pullRequestFromContext.head.repo.full_name !== pullRequestFromContext.base.repo.full_name) {
-            core.info(
-                `Skipping toolkit action for pull request from external fork: ${pullRequestFromContext.head.repo.full_name}`,
-            );
-            return;
-        }
-        core.info('Pull request is from an Apify organization, not from an external fork.');
-
+        // `head.repo` is null once the fork is deleted
+        const isFromFork = pullRequestFromContext.head.repo?.full_name !== pullRequestFromContext.base.repo.full_name;
         const isBotAuthor = KNOWN_BOT_USERS.some(
             (bot) => bot.toLowerCase() === pullRequestFromContext.user.login.toLowerCase(),
         );
-        if (isBotAuthor) {
-            core.info(`Skipping toolkit action for a pull request from bot user: ${pullRequestFromContext.user.login}`);
+
+        // Secrets are not provided to `pull_request` runs from forks and Dependabot, there is nothing we can do then.
+        if ((isFromFork || isBotAuthor) && !input['org-github-token']) {
+            core.info(
+                'Skipping toolkit action for a pull request from a fork or a bot, the secrets are not available.',
+            );
             return;
         }
 
-        // This secret is not provided for pull requests from forks, but we have skipped those already.
-        // If it is missing at this point, the action is misconfigured and we should fail.
+        // If the secret is missing at this point, the action is misconfigured and we should fail.
         if (!input['org-github-token']) throw new Error('Missing org-github-token input!');
         const orgOctokit = getOctokit(input['org-github-token'], { retry: { enabled: true }, request: { retries: 3 } });
 
@@ -72,21 +69,41 @@ export async function main({
         }
         core.info('Pull request toolkit is required for this repository. Proceeding.');
 
+        // Fork authors control the body even after the merge, so forks only touch issues in their own repository.
+        // Link issues mentioned in the pull request body whenever the body is edited.
+        await pullRequestToolkit.linkIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository: isFromFork });
+
+        // Replaces GitHub's auto-close, which is disabled because it also closes manually linked issues.
+        if ((await pullRequestToolkit.isMerged()) && (await pullRequestToolkit.isToDefaultBranch())) {
+            if (isFromFork && (await pullRequestToolkit.isBodyEditedAfterMerge())) {
+                core.warning(
+                    'Not closing referenced issues, the body of this pull request from a fork was edited after the merge.',
+                );
+            } else {
+                await pullRequestToolkit.closeIssuesMentionedInPullRequestBody({
+                    onlyInPullRequestRepository: isFromFork,
+                });
+            }
+        }
+
+        if (isFromFork) {
+            core.info(
+                `Skipping toolkit action for pull request from external fork: ${pullRequestFromContext.head.repo?.full_name ?? 'deleted repository'}`,
+            );
+            return;
+        }
+        core.info('Pull request is from an Apify organization, not from an external fork.');
+
+        if (isBotAuthor) {
+            core.info(`Skipping toolkit action for a pull request from bot user: ${pullRequestFromContext.user.login}`);
+            return;
+        }
+
         if (await pullRequestToolkit.isDraft()) {
             core.info('Pull request is a draft. Skipping toolkit action.');
             return;
         }
         core.info('Pull request is not a draft.');
-
-        // Link issues mentioned in the pull request body whenever the body is edited.
-        await pullRequestToolkit.linkIssuesMentionedInPullRequestBody();
-
-        // We close issues mentioned in the pull request body early on, even for pull requests not in product engineering.
-        // We disable the built-in GitHub automated closing issues when a pull request is merged,
-        // because it closed all linked issues, not just the ones mentioned with closing references.
-        if (await pullRequestToolkit.isMerged()) {
-            await pullRequestToolkit.closeIssuesMentionedInPullRequestBody();
-        }
 
         // A closed pull request belongs in "Closed", the status set below would move it back to "Pull Request".
         if (await pullRequestToolkit.isClosed()) {

@@ -1,11 +1,16 @@
 name: Apify Pull Request Toolkit
 
 on:
-  pull_request:
+  # Gives fork runs the secrets to close their issues on merge; safe since no pull request code is checked out.
+  pull_request_target:
     types: ['opened', 'reopened', 'synchronize', 'labeled', 'unlabeled', 'edited', 'ready_for_review', 'closed']
 
+# The action uses only the org token, so `GITHUB_TOKEN` (writable under `pull_request_target`) gets no permissions.
+permissions: {}
+
 concurrency: # This is to make sure that it's executed only for the most recent changes of the pull request.
-  group: ${{ github.ref }}
+  # Keyed by pull request, since `github.ref` is the base branch under `pull_request_target`.
+  group: pull-request-toolkit-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
