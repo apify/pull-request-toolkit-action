@@ -503,12 +503,12 @@ export class PullRequestToolkit {
         const issueMarkdownLinkRefRegexp = new RegExp(`\\[[^\\]\\n]*\\]\\(${issueUrlRefRegexp.source}\\)`, 'ig');
 
         const fullRegexp = new RegExp(
-            `${referenceRegexp.source}:?\\s+(${issueMarkdownLinkRefRegexp.source}|${issueUrlRefRegexp.source}|${issueShortRefRegexp.source})`,
+            `\\b${referenceRegexp.source}:?\\s+(${issueMarkdownLinkRefRegexp.source}|${issueUrlRefRegexp.source}|${issueShortRefRegexp.source})`,
             'ig',
         );
 
         // Like GitHub, ignore references inside code blocks and inline code, which are usually examples
-        const bodyWithoutCode = pullRequest.body.replace(/```[\s\S]*?```|`[^`\n]*`/g, '');
+        const bodyWithoutCode = pullRequest.body.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`/g, '');
 
         const mentions = [
             ...bodyWithoutCode.matchAll(fullRegexp).map((match) => ({
@@ -526,8 +526,8 @@ export class PullRequestToolkit {
             try {
                 issue = await this.githubModel.getIssue(mention.owner, mention.repo, mention.number);
             } catch (error) {
-                // Like GitHub, ignore references to issues that don't exist or that we have no access to
-                if ((error as { status?: number }).status !== 404) throw error;
+                // Like GitHub, ignore references to missing (404) or deleted (410) issues, or ones we can't access
+                if (![404, 410].includes((error as { status?: number }).status!)) throw error;
                 this.core.warning(
                     `${mention.owner}/${mention.repo}#${mention.number} mentioned in the pull request body was not found.`,
                 );

@@ -5,8 +5,8 @@ import { main } from '../src/main.ts';
 import { PullRequestToolkit } from '../src/pull_request_toolkit.ts';
 import type { Context, Core, GetOctokitFunction } from '../src/types.ts';
 
-function makeContext(pullRequest: Record<string, unknown>) {
-    return { payload: { pull_request: pullRequest } } as unknown as Context;
+function makeContext(pullRequest: Record<string, unknown>, { action = 'opened', runAttempt = 1 } = {}) {
+    return { payload: { action, pull_request: pullRequest }, runAttempt } as unknown as Context;
 }
 
 function makePullRequest(creatorLogin: string, headRepoFullName = 'apify/proxy-chain') {
@@ -94,21 +94,44 @@ describe('main', () => {
         const input = { 'org-github-token': 'token', 'apify-api-token': 'token' };
 
         test.each([
-            ['from a fork', makePullRequest('daveomri', 'daveomri/proxy-chain')],
-            ['from a bot', makePullRequest('apify-service-account')],
-        ])('closes them for a pull request %s', async (_, pullRequest) => {
+            [
+                'from a fork when it is merged',
+                makePullRequest('daveomri', 'daveomri/proxy-chain'),
+                { action: 'closed' },
+            ],
+            [
+                'from a fork when the check is re-run after the merge',
+                makePullRequest('daveomri', 'daveomri/proxy-chain'),
+                { runAttempt: 2 },
+            ],
+            ['from a bot', makePullRequest('apify-service-account'), {}],
+        ])('closes them for a pull request %s', async (_, pullRequest, contextOptions) => {
             const closeIssues = mockMergedPullRequest();
             const core = { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;
 
             await main({
                 getOctokit: vi.fn() as unknown as GetOctokitFunction,
-                context: makeContext(pullRequest),
+                context: makeContext(pullRequest, contextOptions),
                 core,
                 input,
             });
 
             expect(closeIssues).toHaveBeenCalled();
             expect(core.setFailed).not.toHaveBeenCalled();
+        });
+
+        test('does not close them for a pull request from a fork whose body is edited after the merge', async () => {
+            const closeIssues = mockMergedPullRequest();
+            const core = { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;
+
+            await main({
+                getOctokit: vi.fn() as unknown as GetOctokitFunction,
+                context: makeContext(makePullRequest('daveomri', 'daveomri/proxy-chain'), { action: 'edited' }),
+                core,
+                input,
+            });
+
+            expect(closeIssues).not.toHaveBeenCalled();
         });
 
         test('does not close them for a pull request merged into a non-default branch', async () => {

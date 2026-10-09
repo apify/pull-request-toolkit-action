@@ -196,18 +196,21 @@ describe('closeIssuesMentionedInPullRequestBody', () => {
         'Part of [#100](https://github.com/apify/apify-core/issues/100)',
         'Accepts `Closes: #100` now',
         '```\nCloses #100\n```',
+        '~~~\nCloses #100\n~~~',
+        'Unresolved: #100',
+        'Prefixes #100',
     ])('does not close the issue referenced by "%s"', async (body) => {
         expect(await closedIssuesFor(body)).toEqual([]);
     });
 
-    test('skips references to issues that cannot be fetched and closes the rest', async () => {
+    test.each([404, 410])('skips references to issues that respond with %i and closes the rest', async (status) => {
         const githubModel = makeGithubModel({
             getPullRequest: vi.fn().mockResolvedValue({ ...basePullRequest, body: 'Closes #100\nCloses #200' }),
             getIssue: vi
                 .fn()
                 .mockImplementation((_owner: string, _repo: string, number: number) =>
                     number === 100
-                        ? Promise.reject(Object.assign(new Error('Not Found'), { status: 404 }))
+                        ? Promise.reject(Object.assign(new Error('Not Found'), { status }))
                         : Promise.resolve({}),
                 ),
             closeIssueAsCompleted: vi.fn().mockResolvedValue(undefined),

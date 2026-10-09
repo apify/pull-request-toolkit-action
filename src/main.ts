@@ -72,7 +72,9 @@ export async function main({
         // We disable the built-in GitHub automated closing issues when a pull request is merged,
         // because it closed all linked issues, not just the ones mentioned with closing references.
         // Like the built-in one, this only applies to pull requests merged into the default branch.
-        if ((await pullRequestToolkit.isMerged()) && (await pullRequestToolkit.isToDefaultBranch())) {
+        // Fork authors can edit the body after the merge, so for forks only the merge event and re-runs (write access) count.
+        const isTrustedRun = !isFromFork || context.payload.action === 'closed' || context.runAttempt > 1;
+        if (isTrustedRun && (await pullRequestToolkit.isMerged()) && (await pullRequestToolkit.isToDefaultBranch())) {
             await pullRequestToolkit.closeIssuesMentionedInPullRequestBody();
         }
 
