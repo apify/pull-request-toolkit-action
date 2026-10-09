@@ -125,6 +125,18 @@ describe('linkIssuesMentionedInPullRequestBody', () => {
         });
     }
 
+    test('links only issues in the pull request repository when asked to', async () => {
+        const githubModel = makeLinkingGithubModel({
+            getPullRequest: vi
+                .fn()
+                .mockResolvedValue({ ...partOfPullRequest, body: 'Part of #100\nPart of apify/apify-core#200' }),
+        });
+
+        await makeToolkit(githubModel).linkIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository: true });
+
+        expect(githubModel.linkPullRequestToIssue).toHaveBeenCalledExactlyOnceWith('I_100', 'PR_1');
+    });
+
     test('skips issues that are already linked', async () => {
         const githubModel = makeLinkingGithubModel({
             getNativelyLinkedIssuesForPullRequest: vi
@@ -236,5 +248,21 @@ describe('closeIssuesMentionedInPullRequestBody', () => {
 
         expect(githubModel.closeIssueAsCompleted).toHaveBeenCalledExactlyOnceWith('apify', 'apify-proxy', 200);
         expect(mockCore.warning).toHaveBeenCalledWith(expect.stringContaining('apify/apify-proxy#100'));
+    });
+});
+
+describe('isBodyEditedAfterMerge', () => {
+    test.each([
+        ['edited after the merge', '2026-10-09T10:05:00Z', true],
+        ['edited before the merge', '2026-10-09T09:55:00Z', false],
+        ['never edited', null, false],
+    ])('detects a body %s', async (_, lastEditedAt, expected) => {
+        const githubModel = makeGithubModel({
+            getPullRequestBodyEditedAndMergedAt: vi
+                .fn()
+                .mockResolvedValue({ lastEditedAt, mergedAt: '2026-10-09T10:00:00Z' }),
+        });
+
+        expect(await makeToolkit(githubModel).isBodyEditedAfterMerge()).toBe(expected);
     });
 });

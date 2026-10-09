@@ -76,6 +76,18 @@ export class PullRequestToolkit {
     }
 
     /**
+     * Checks whether the pull request body was edited after the pull request was merged.
+     */
+    public async isBodyEditedAfterMerge(): Promise<boolean> {
+        const { lastEditedAt, mergedAt } = await this.githubModel.getPullRequestBodyEditedAndMergedAt(
+            this.pullRequestRepoOwner,
+            this.pullRequestRepoName,
+            this.pullRequestNumber,
+        );
+        return !!lastEditedAt && !!mergedAt && new Date(lastEditedAt) > new Date(mergedAt);
+    }
+
+    /**
      * Checks whether the pull request is merged.
      */
     public async isMerged(): Promise<boolean> {
@@ -474,19 +486,15 @@ export class PullRequestToolkit {
      * Parses the pull request body for issue-closing references (e.g., "fixes #123") and returns the referenced issues.
      * This is a fallback/addition to `getNativelyLinkedIssuesForPullRequest`, since GitHub's own detection of such
      * references is not always reliable (e.g. references added by editing the body after the pull request creation).
-     * The `body` option is parsed instead of the current body of the pull request.
+     * With `onlyInPullRequestRepository`, references to issues in other repositories are ignored.
      */
-    private async getIssuesMentionedInPullRequestBody({
-        onlyInPullRequestRepository = false,
-        body,
-    }: { onlyInPullRequestRepository?: boolean; body?: string } = {}) {
+    private async getIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository = false } = {}) {
         const pullRequest = await this.githubModel.getPullRequest(
             this.pullRequestRepoOwner,
             this.pullRequestRepoName,
             this.pullRequestNumber,
         );
-        const pullRequestBody = body ?? pullRequest.body;
-        if (!pullRequestBody) return [];
+        if (!pullRequest.body) return [];
 
         // These are native GitHub reference phrases which cause an issue to be automatically linked
         const closingReferenceRegexp = new RegExp(
@@ -513,7 +521,10 @@ export class PullRequestToolkit {
         );
 
         // Ignore references in code (like GitHub, usually examples) and in HTML comments (hidden from reviewers)
-        const bodyWithoutCode = pullRequestBody.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`|<!--[\s\S]*?-->/g, '');
+        const bodyWithoutCode = pullRequest.body.replace(
+            /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`|<!--[\s\S]*?-->/g,
+            '',
+        );
 
         const mentions = [
             ...bodyWithoutCode.matchAll(fullRegexp).map((match) => ({
@@ -556,9 +567,10 @@ export class PullRequestToolkit {
 
     /**
      * Links all issues mentioned in the pull request body that are not native references.
+     * With `onlyInPullRequestRepository`, references to issues in other repositories are ignored.
      */
-    public async linkIssuesMentionedInPullRequestBody() {
-        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody();
+    public async linkIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository = false } = {}) {
+        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository });
 
         // Native references are linked automatically by GitHub
         const nonNativeReferences = mentionedIssues.filter((issue) => !issue.isNativeReference);
@@ -608,13 +620,9 @@ export class PullRequestToolkit {
     /**
      * Closes all issues that are mentioned in the pull request body with a closing reference (e.g., "fixes #123").
      * With `onlyInPullRequestRepository`, references to issues in other repositories are ignored.
-     * The `body` option is parsed instead of the current body of the pull request.
      */
-    public async closeIssuesMentionedInPullRequestBody({
-        onlyInPullRequestRepository = false,
-        body,
-    }: { onlyInPullRequestRepository?: boolean; body?: string } = {}) {
-        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository, body });
+    public async closeIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository = false } = {}) {
+        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository });
         const issuesToClose = mentionedIssues.filter((issue) => issue.isClosingReference);
         if (issuesToClose.length === 0) return;
 

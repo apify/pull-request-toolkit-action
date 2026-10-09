@@ -9,8 +9,8 @@ on:
 permissions: {}
 
 concurrency: # This is to make sure that it's executed only for the most recent changes of the pull request.
-  # Keyed by pull request (`github.ref` is the base branch here); the `closed` run gets its own group to never be cancelled.
-  group: pull-request-toolkit-${{ github.event.pull_request.number }}${{ github.event.action == 'closed' && format('-{0}', github.run_id) || '' }}
+  # Keyed by pull request, since `github.ref` is the base branch under `pull_request_target`.
+  group: pull-request-toolkit-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:

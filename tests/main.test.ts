@@ -5,8 +5,8 @@ import { main } from '../src/main.ts';
 import { PullRequestToolkit } from '../src/pull_request_toolkit.ts';
 import type { Context, Core, GetOctokitFunction } from '../src/types.ts';
 
-function makeContext(pullRequest: Record<string, unknown>, { action = 'opened', runAttempt = 1 } = {}) {
-    return { payload: { action, pull_request: pullRequest }, runAttempt } as unknown as Context;
+function makeContext(pullRequest: Record<string, unknown>) {
+    return { payload: { pull_request: pullRequest } } as unknown as Context;
 }
 
 function makePullRequest(creatorLogin: string, headRepoFullName = 'apify/proxy-chain') {
@@ -78,8 +78,8 @@ describe('main', () => {
         expect(core.setFailed).not.toHaveBeenCalled();
     });
 
-    describe('closing issues referenced by a merged pull request', () => {
-        function mockMergedPullRequest({ baseRef = 'master' } = {}) {
+    describe('linking and closing issues referenced by a merged pull request', () => {
+        function mockMergedPullRequest({ baseRef = 'master', isBodyEditedAfterMerge = false } = {}) {
             vi.spyOn(GitHubModel.prototype, 'getPullRequest').mockResolvedValue({
                 state: 'closed',
                 merged: true,
@@ -87,38 +87,22 @@ describe('main', () => {
                 base: { ref: baseRef, repo: { default_branch: 'master' } },
             } as unknown as Awaited<ReturnType<GitHubModel['getPullRequest']>>);
             vi.spyOn(PullRequestToolkit.prototype, 'isPullRequestToolkitRequiredForRepo').mockResolvedValue(true);
-            vi.spyOn(PullRequestToolkit.prototype, 'linkIssuesMentionedInPullRequestBody').mockResolvedValue();
-            return vi.spyOn(PullRequestToolkit.prototype, 'closeIssuesMentionedInPullRequestBody').mockResolvedValue();
+            vi.spyOn(PullRequestToolkit.prototype, 'isBodyEditedAfterMerge').mockResolvedValue(isBodyEditedAfterMerge);
+            return {
+                linkIssues: vi
+                    .spyOn(PullRequestToolkit.prototype, 'linkIssuesMentionedInPullRequestBody')
+                    .mockResolvedValue(),
+                closeIssues: vi
+                    .spyOn(PullRequestToolkit.prototype, 'closeIssuesMentionedInPullRequestBody')
+                    .mockResolvedValue(),
+            };
+        }
+
+        function makeCore() {
+            return { info: vi.fn(), warning: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;
         }
 
         const input = { 'org-github-token': 'token', 'apify-api-token': 'token' };
-
-        test.each([
-            [
-                'from a fork when it is merged',
-                makePullRequest('daveomri', 'daveomri/proxy-chain'),
-                { action: 'closed' },
-            ],
-            [
-                'from a fork when the check is re-run after the merge',
-                makePullRequest('daveomri', 'daveomri/proxy-chain'),
-                { runAttempt: 2 },
-            ],
-            ['from a bot', makePullRequest('apify-service-account'), {}],
-        ])('closes them for a pull request %s', async (_, pullRequest, contextOptions) => {
-            const closeIssues = mockMergedPullRequest();
-            const core = { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;
-
-            await main({
-                getOctokit: vi.fn() as unknown as GetOctokitFunction,
-                context: makeContext(pullRequest, contextOptions),
-                core,
-                input,
-            });
-
-            expect(closeIssues).toHaveBeenCalled();
-            expect(core.setFailed).not.toHaveBeenCalled();
-        });
 
         test.each([
             [
@@ -131,71 +115,46 @@ describe('main', () => {
                 { ...makePullRequest('daveomri'), head: { repo: null } },
                 true,
             ],
+            ['in any repository for a pull request from a bot', makePullRequest('apify-service-account'), false],
             ['in any repository for a pull request from the organization', makePullRequest('VojtaM39'), false],
-        ])('closes them %s', async (_, pullRequest, onlyInPullRequestRepository) => {
-            const closeIssues = mockMergedPullRequest();
+        ])('links and closes them %s', async (_, pullRequest, onlyInPullRequestRepository) => {
+            const { linkIssues, closeIssues } = mockMergedPullRequest();
+            const core = makeCore();
 
             await main({
                 getOctokit: vi.fn() as unknown as GetOctokitFunction,
-                context: makeContext(pullRequest, { action: 'closed' }),
-                core: { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core,
+                context: makeContext(pullRequest),
+                core,
                 input,
             });
 
-            expect(closeIssues).toHaveBeenCalledWith(expect.objectContaining({ onlyInPullRequestRepository }));
+            expect(linkIssues).toHaveBeenCalledWith({ onlyInPullRequestRepository });
+            expect(closeIssues).toHaveBeenCalledWith({ onlyInPullRequestRepository });
+            expect(core.setFailed).not.toHaveBeenCalled();
         });
 
-        test('closes the issues referenced at the merge of a pull request from a fork, not after editing its body', async () => {
-            vi.spyOn(GitHubModel.prototype, 'getPullRequest').mockResolvedValue({
-                state: 'closed',
-                merged: true,
-                body: 'Closes #2',
-                base: {
-                    ref: 'master',
-                    repo: { default_branch: 'master', owner: { login: 'apify' }, name: 'proxy-chain' },
-                },
-            } as unknown as Awaited<ReturnType<GitHubModel['getPullRequest']>>);
-            vi.spyOn(GitHubModel.prototype, 'getIssue').mockResolvedValue(
-                {} as Awaited<ReturnType<GitHubModel['getIssue']>>,
-            );
-            const closeIssue = vi.spyOn(GitHubModel.prototype, 'closeIssueAsCompleted').mockResolvedValue();
-            vi.spyOn(PullRequestToolkit.prototype, 'isPullRequestToolkitRequiredForRepo').mockResolvedValue(true);
+        test('does not close them for a pull request from a fork whose body was edited after the merge', async () => {
+            const { closeIssues } = mockMergedPullRequest({ isBodyEditedAfterMerge: true });
+            const core = makeCore();
 
             await main({
                 getOctokit: vi.fn() as unknown as GetOctokitFunction,
-                context: makeContext(
-                    { ...makePullRequest('daveomri', 'daveomri/proxy-chain'), body: 'Closes #1' },
-                    { action: 'closed' },
-                ),
-                core: { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core,
-                input,
-            });
-
-            expect(closeIssue).toHaveBeenCalledExactlyOnceWith('apify', 'proxy-chain', 1);
-        });
-
-        test('does not close them for a pull request from a fork whose body is edited after the merge', async () => {
-            const closeIssues = mockMergedPullRequest();
-            const core = { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;
-
-            await main({
-                getOctokit: vi.fn() as unknown as GetOctokitFunction,
-                context: makeContext(makePullRequest('daveomri', 'daveomri/proxy-chain'), { action: 'edited' }),
+                context: makeContext(makePullRequest('daveomri', 'daveomri/proxy-chain')),
                 core,
                 input,
             });
 
             expect(closeIssues).not.toHaveBeenCalled();
+            expect(core.warning).toHaveBeenCalled();
         });
 
         test('does not close them for a pull request merged into a non-default branch', async () => {
-            const closeIssues = mockMergedPullRequest({ baseRef: 'feature' });
-            const core = { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;
+            const { closeIssues } = mockMergedPullRequest({ baseRef: 'feature' });
 
             await main({
                 getOctokit: vi.fn() as unknown as GetOctokitFunction,
                 context: makeContext(makePullRequest('VojtaM39')),
-                core,
+                core: makeCore(),
                 input,
             });
 
@@ -203,7 +162,7 @@ describe('main', () => {
         });
 
         test('skips a pull request from a fork without failing when the secrets are not available', async () => {
-            const core = { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;
+            const core = makeCore();
             const getOctokit = vi.fn() as unknown as GetOctokitFunction;
 
             await main({

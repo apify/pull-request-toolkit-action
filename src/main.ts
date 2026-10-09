@@ -69,16 +69,21 @@ export async function main({
         }
         core.info('Pull request toolkit is required for this repository. Proceeding.');
 
-        // Fork authors can edit the body after the merge, so only their merge event or a re-run (needs write access) counts.
-        const isMergeEvent = context.payload.action === 'closed';
-        const isTrustedRun = !isFromFork || isMergeEvent || context.runAttempt > 1;
-        // Replaces GitHub's auto-close (disabled as it also closes manually linked issues); forks close only this repository's issues.
-        if (isTrustedRun && (await pullRequestToolkit.isMerged()) && (await pullRequestToolkit.isToDefaultBranch())) {
-            await pullRequestToolkit.closeIssuesMentionedInPullRequestBody({
-                onlyInPullRequestRepository: isFromFork,
-                // The fetched body may already be edited by the fork author, the event carries the one from the merge
-                body: isFromFork && isMergeEvent ? (pullRequestFromContext.body ?? '') : undefined,
-            });
+        // Fork authors control the body even after the merge, so forks only touch issues in their own repository.
+        // Link issues mentioned in the pull request body whenever the body is edited.
+        await pullRequestToolkit.linkIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository: isFromFork });
+
+        // Replaces GitHub's auto-close, which is disabled because it also closes manually linked issues.
+        if ((await pullRequestToolkit.isMerged()) && (await pullRequestToolkit.isToDefaultBranch())) {
+            if (isFromFork && (await pullRequestToolkit.isBodyEditedAfterMerge())) {
+                core.warning(
+                    'Not closing referenced issues, the body of this pull request from a fork was edited after the merge.',
+                );
+            } else {
+                await pullRequestToolkit.closeIssuesMentionedInPullRequestBody({
+                    onlyInPullRequestRepository: isFromFork,
+                });
+            }
         }
 
         if (isFromFork) {
@@ -99,9 +104,6 @@ export async function main({
             return;
         }
         core.info('Pull request is not a draft.');
-
-        // Link issues mentioned in the pull request body whenever the body is edited.
-        await pullRequestToolkit.linkIssuesMentionedInPullRequestBody();
 
         // A closed pull request belongs in "Closed", the status set below would move it back to "Pull Request".
         if (await pullRequestToolkit.isClosed()) {
