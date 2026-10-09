@@ -120,6 +120,26 @@ describe('main', () => {
             expect(core.setFailed).not.toHaveBeenCalled();
         });
 
+        test.each([
+            [
+                'only in its own repository for a pull request from a fork',
+                makePullRequest('daveomri', 'daveomri/proxy-chain'),
+                true,
+            ],
+            ['in any repository for a pull request from the organization', makePullRequest('VojtaM39'), false],
+        ])('closes them %s', async (_, pullRequest, onlyInPullRequestRepository) => {
+            const closeIssues = mockMergedPullRequest();
+
+            await main({
+                getOctokit: vi.fn() as unknown as GetOctokitFunction,
+                context: makeContext(pullRequest, { action: 'closed' }),
+                core: { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core,
+                input,
+            });
+
+            expect(closeIssues).toHaveBeenCalledWith({ onlyInPullRequestRepository });
+        });
+
         test('does not close them for a pull request from a fork whose body is edited after the merge', async () => {
             const closeIssues = mockMergedPullRequest();
             const core = { info: vi.fn(), error: vi.fn(), setFailed: vi.fn() } as unknown as Core;

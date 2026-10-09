@@ -203,6 +203,21 @@ describe('closeIssuesMentionedInPullRequestBody', () => {
         expect(await closedIssuesFor(body)).toEqual([]);
     });
 
+    test('closes only issues in the pull request repository when asked to, without looking up the others', async () => {
+        const githubModel = makeGithubModel({
+            getPullRequest: vi
+                .fn()
+                .mockResolvedValue({ ...basePullRequest, body: 'Closes #100\nCloses apify/apify-core#200' }),
+            getIssue: vi.fn().mockResolvedValue({}),
+            closeIssueAsCompleted: vi.fn().mockResolvedValue(undefined),
+        });
+
+        await makeToolkit(githubModel).closeIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository: true });
+
+        expect(githubModel.closeIssueAsCompleted).toHaveBeenCalledExactlyOnceWith('apify', 'apify-proxy', 100);
+        expect(githubModel.getIssue).toHaveBeenCalledExactlyOnceWith('apify', 'apify-proxy', 100);
+    });
+
     test.each([404, 410])('skips references to issues that respond with %i and closes the rest', async (status) => {
         const githubModel = makeGithubModel({
             getPullRequest: vi.fn().mockResolvedValue({ ...basePullRequest, body: 'Closes #100\nCloses #200' }),

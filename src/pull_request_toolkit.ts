@@ -475,7 +475,7 @@ export class PullRequestToolkit {
      * This is a fallback/addition to `getNativelyLinkedIssuesForPullRequest`, since GitHub's own detection of such
      * references is not always reliable (e.g. references added by editing the body after the pull request creation).
      */
-    private async getIssuesMentionedInPullRequestBody() {
+    private async getIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository = false } = {}) {
         const pullRequest = await this.githubModel.getPullRequest(
             this.pullRequestRepoOwner,
             this.pullRequestRepoName,
@@ -518,7 +518,12 @@ export class PullRequestToolkit {
                 repo: match.groups!.repo || pullRequest.base.repo.name,
                 number: parseInt(match.groups!.number, 10),
             })),
-        ];
+        ].filter(
+            (mention) =>
+                !onlyInPullRequestRepository ||
+                (mention.owner.toLowerCase() === this.pullRequestRepoOwner.toLowerCase() &&
+                    mention.repo.toLowerCase() === this.pullRequestRepoName.toLowerCase()),
+        );
 
         // Keep only issues, filter out pull requests
         const mentionedIssues = asyncFilter(mentions, async (mention) => {
@@ -597,9 +602,10 @@ export class PullRequestToolkit {
 
     /**
      * Closes all issues that are mentioned in the pull request body with a closing reference (e.g., "fixes #123").
+     * With `onlyInPullRequestRepository`, references to issues in other repositories are ignored.
      */
-    public async closeIssuesMentionedInPullRequestBody() {
-        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody();
+    public async closeIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository = false } = {}) {
+        const mentionedIssues = await this.getIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository });
         const issuesToClose = mentionedIssues.filter((issue) => issue.isClosingReference);
         if (issuesToClose.length === 0) return;
 

@@ -68,14 +68,12 @@ export async function main({
         }
         core.info('Pull request toolkit is required for this repository. Proceeding.');
 
-        // We close issues mentioned in the pull request body early on, for every pull request including forks and bots.
-        // We disable the built-in GitHub automated closing issues when a pull request is merged,
-        // because it closed all linked issues, not just the ones mentioned with closing references.
-        // Like the built-in one, this only applies to pull requests merged into the default branch.
-        // Fork authors can edit the body after the merge, so for forks only the merge event and re-runs (write access) count.
+        // Replaces GitHub's built-in auto-close, which is disabled because it also closes manually linked issues.
+        // Fork authors control the body even after the merge, so forks only close issues in their own repository,
+        // and only on the merge event or a re-run (which needs write access).
         const isTrustedRun = !isFromFork || context.payload.action === 'closed' || context.runAttempt > 1;
         if (isTrustedRun && (await pullRequestToolkit.isMerged()) && (await pullRequestToolkit.isToDefaultBranch())) {
-            await pullRequestToolkit.closeIssuesMentionedInPullRequestBody();
+            await pullRequestToolkit.closeIssuesMentionedInPullRequestBody({ onlyInPullRequestRepository: isFromFork });
         }
 
         if (isFromFork) {

@@ -8,7 +8,8 @@ on:
 
 concurrency: # This is to make sure that it's executed only for the most recent changes of the pull request.
   # `github.ref` is the base branch for `pull_request_target`, so the pull request number has to be used instead.
-  group: pull-request-toolkit-${{ github.event.pull_request.number }}
+  # The `closed` run is the only one that closes issues of fork pull requests, so it must never be cancelled.
+  group: pull-request-toolkit-${{ github.event.pull_request.number }}${{ github.event.action == 'closed' && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
