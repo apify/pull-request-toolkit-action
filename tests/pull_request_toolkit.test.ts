@@ -137,6 +137,16 @@ describe('linkIssuesMentionedInPullRequestBody', () => {
         expect(githubModel.linkPullRequestToIssue).toHaveBeenCalledExactlyOnceWith('I_100', 'PR_1');
     });
 
+    test('does not manually link issues referenced with a closing keyword, GitHub links those natively', async () => {
+        const githubModel = makeLinkingGithubModel({
+            getPullRequest: vi.fn().mockResolvedValue({ ...partOfPullRequest, body: 'Closes #100\nPart of #200' }),
+        });
+
+        await makeToolkit(githubModel).linkIssuesMentionedInPullRequestBody();
+
+        expect(githubModel.linkPullRequestToIssue).toHaveBeenCalledExactlyOnceWith('I_200', 'PR_1');
+    });
+
     test('skips issues that are already linked', async () => {
         const githubModel = makeLinkingGithubModel({
             getNativelyLinkedIssuesForPullRequest: vi
