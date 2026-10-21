@@ -7,7 +7,7 @@ blockExoticSubdeps: true
 lockfileIncludeTarballUrl: true
 
 # Supply chain hardening
-minimumReleaseAge: 1440 # 24 hours
+minimumReleaseAge: 10080 # 7 days
 # Exclude our own packages from the minimum release age requirement,
 # since we publish them ourselves and can be reasonably sure they aren't malicious.
 minimumReleaseAgeExclude:
