@@ -6,7 +6,6 @@ import {
     PRODUCT_ENGINEERING_TEAM_SLUG,
     TEAM_LABEL_PREFIX,
     TEAM_NAME_TO_LABEL,
-    TEAM_NAME_TO_PROJECT_TITLE,
 } from './consts.ts';
 import { UserError } from './errors.ts';
 import type { GitHubModel } from './github_model.ts';
@@ -177,7 +176,7 @@ export class PullRequestToolkit {
      */
     public async findProjectForTeam(teamName: string) {
         const projects = await this.githubModel.listProjects(this.pullRequestRepoOwner);
-        const projectName = TEAM_NAME_TO_PROJECT_TITLE[teamName] || `${teamName} Team Kanban`;
+        const projectName = `${teamName} Team Kanban`;
         const project = projects.find((p) => p.title === projectName);
         if (!project) return null;
 

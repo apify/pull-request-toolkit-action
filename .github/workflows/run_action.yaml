@@ -3,7 +3,11 @@ name: Apify Pull Request Toolkit
 on:
   # Gives fork runs the secrets to close their issues on merge; safe since no pull request code is checked out.
   pull_request_target:
-    types: ['opened', 'reopened', 'synchronize', 'labeled', 'unlabeled', 'edited', 'ready_for_review', 'closed']
+    # Required workflows from repository rulesets can only run on the default trigger events.
+    # 'labeled', 'unlabeled', 'edited', 'ready_for_review', 'closed' cannot be handled by this workflow,
+    # so instead we'll listen to them by webhooks and rerun this workflow when necessary.
+    types: ['opened', 'reopened', 'synchronize']
+
 
 # The action uses only the org token, so `GITHUB_TOKEN` (writable under `pull_request_target`) gets no permissions.
 permissions: {}
