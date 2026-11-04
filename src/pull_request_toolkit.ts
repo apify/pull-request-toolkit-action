@@ -6,6 +6,7 @@ import {
     PRODUCT_ENGINEERING_TEAM_SLUG,
     TEAM_LABEL_PREFIX,
     TEAM_NAME_TO_LABEL,
+    TEAMS_TAKING_PRECEDENCE,
 } from './consts.ts';
 import { UserError } from './errors.ts';
 import type { GitHubModel } from './github_model.ts';
@@ -156,15 +157,16 @@ export class PullRequestToolkit {
         );
         if (!childTeams.length) throw new Error(`No child teams found in Product Engineering team!`);
 
-        let teamName = null;
+        // If the user is in more than one team, a team from TEAMS_TAKING_PRECEDENCE wins, otherwise the first one found.
+        let teamName: string | null = null;
         for (const childTeam of childTeams) {
             const members = await this.githubModel.getTeamMembers(this.pullRequestRepoOwner, childTeam.slug);
 
             const isMember = members.some((member) => member?.login === userLogin);
-            if (isMember) {
-                teamName = childTeam.name;
-                break;
-            }
+            if (!isMember) continue;
+
+            if (TEAMS_TAKING_PRECEDENCE.includes(childTeam.name)) return childTeam.name;
+            teamName ??= childTeam.name;
         }
 
         return teamName;

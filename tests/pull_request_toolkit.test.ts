@@ -276,3 +276,57 @@ describe('isBodyEditedAfterMerge', () => {
         expect(await makeToolkit(githubModel).isBodyEditedAfterMerge()).toBe(expected);
     });
 });
+
+describe('findUsersProductEngineeringChildTeamName', () => {
+    const teams = [
+        { slug: 'console', name: 'Console' },
+        { slug: 'acquisition', name: 'Acquisition' },
+        { slug: 'qa', name: 'QA' },
+    ];
+    const membersByTeam: Record<string, string[]> = {
+        console: ['console-dev', 'qa-and-console'],
+        acquisition: ['acquisition-dev'],
+        qa: ['qa-only', 'qa-and-console'],
+    };
+
+    function makeTeamsGithubModel() {
+        return makeGithubModel({
+            getChildTeams: vi.fn().mockResolvedValue(teams),
+            getTeamMembers: vi
+                .fn()
+                .mockImplementation((_org: string, slug: string) =>
+                    Promise.resolve(membersByTeam[slug].map((login) => ({ login }))),
+                ),
+        });
+    }
+
+    test('returns the only team of the user', async () => {
+        const toolkit = makeToolkit(makeTeamsGithubModel());
+
+        expect(await toolkit.findUsersProductEngineeringChildTeamName('acquisition-dev')).toBe('Acquisition');
+        expect(await toolkit.findUsersProductEngineeringChildTeamName('qa-only')).toBe('QA');
+    });
+
+    test('prefers the QA team over a team listed earlier', async () => {
+        const toolkit = makeToolkit(makeTeamsGithubModel());
+
+        expect(await toolkit.findUsersProductEngineeringChildTeamName('qa-and-console')).toBe('QA');
+    });
+
+    test('returns the first team when the user is in several teams without precedence', async () => {
+        const githubModel = makeTeamsGithubModel();
+        membersByTeam.acquisition.push('console-dev');
+        try {
+            const result = await makeToolkit(githubModel).findUsersProductEngineeringChildTeamName('console-dev');
+            expect(result).toBe('Console');
+        } finally {
+            membersByTeam.acquisition.pop();
+        }
+    });
+
+    test('returns null when the user is in no team', async () => {
+        const toolkit = makeToolkit(makeTeamsGithubModel());
+
+        expect(await toolkit.findUsersProductEngineeringChildTeamName('nobody')).toBeNull();
+    });
+});
