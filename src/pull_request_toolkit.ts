@@ -149,6 +149,7 @@ export class PullRequestToolkit {
 
     /**
      * Finds whether the user is a member of any child team of the Product Engineering team and returns the name of that team.
+     * If the user is in several teams, a team from TEAMS_TAKING_PRECEDENCE wins, otherwise the first one found.
      */
     public async findUsersProductEngineeringChildTeamName(userLogin: string): Promise<string | null> {
         const childTeams = await this.githubModel.getChildTeams(
@@ -157,7 +158,6 @@ export class PullRequestToolkit {
         );
         if (!childTeams.length) throw new Error(`No child teams found in Product Engineering team!`);
 
-        // If the user is in more than one team, a team from TEAMS_TAKING_PRECEDENCE wins, otherwise the first one found.
         let teamName: string | null = null;
         for (const childTeam of childTeams) {
             const members = await this.githubModel.getTeamMembers(this.pullRequestRepoOwner, childTeam.slug);
@@ -174,7 +174,6 @@ export class PullRequestToolkit {
 
     /**
      * Finds a GitHub Project board for the given team called "<TEAM_NAME> Team Kanban".
-     * Custom mappings can be defined in TEAM_NAME_TO_PROJECT_TITLE constant.
      */
     public async findProjectForTeam(teamName: string) {
         const projects = await this.githubModel.listProjects(this.pullRequestRepoOwner);
