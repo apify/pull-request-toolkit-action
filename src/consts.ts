@@ -1,5 +1,8 @@
 export const PRODUCT_ENGINEERING_TEAM_SLUG = 'product-engineering';
 
+// Teams that win when a user belongs to several Product Engineering teams, e.g., while moving between teams.
+export const TEAMS_TAKING_PRECEDENCE: readonly string[] = ['QA'];
+
 export const LABELS = {
     ADHOC: 'adhoc',
     TESTED: 'tested',

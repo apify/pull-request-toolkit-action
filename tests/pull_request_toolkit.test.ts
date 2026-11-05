@@ -276,3 +276,43 @@ describe('isBodyEditedAfterMerge', () => {
         expect(await makeToolkit(githubModel).isBodyEditedAfterMerge()).toBe(expected);
     });
 });
+
+describe('findUsersProductEngineeringChildTeamName', () => {
+    function findTeamName(
+        userLogin: string,
+        membersByTeam: Record<string, string[]>,
+        teamNames = ['Console', 'Acquisition', 'QA'],
+    ) {
+        const teams = teamNames.map((name) => ({ name, slug: name.toLowerCase() }));
+        const githubModel = makeGithubModel({
+            getChildTeams: vi.fn().mockResolvedValue(teams),
+            getTeamMembers: vi
+                .fn()
+                .mockImplementation((_org: string, slug: string) =>
+                    Promise.resolve((membersByTeam[slug] ?? []).map((login) => ({ login }))),
+                ),
+        });
+        return makeToolkit(githubModel).findUsersProductEngineeringChildTeamName(userLogin);
+    }
+
+    test('returns the only team of the user', async () => {
+        expect(await findTeamName('dev', { acquisition: ['dev'] })).toBe('Acquisition');
+        expect(await findTeamName('dev', { qa: ['dev'] })).toBe('QA');
+    });
+
+    test('prefers the QA team over a team listed earlier', async () => {
+        expect(await findTeamName('dev', { console: ['dev'], qa: ['dev'] })).toBe('QA');
+    });
+
+    test('prefers the QA team over a team listed later', async () => {
+        expect(await findTeamName('dev', { qa: ['dev'], console: ['dev'] }, ['QA', 'Console'])).toBe('QA');
+    });
+
+    test('returns the first team when the user is in several teams without precedence', async () => {
+        expect(await findTeamName('dev', { console: ['dev'], acquisition: ['dev'] })).toBe('Console');
+    });
+
+    test('returns null when the user is in no team', async () => {
+        expect(await findTeamName('nobody', { console: ['dev'] })).toBeNull();
+    });
+});
