@@ -19,7 +19,6 @@ import type {
     IterationField,
     SingleSelectField,
 } from './types.ts';
-import { asyncFilter } from './utils.ts';
 
 /**
  * A toolkit for working with pull requests with Apify-specific requirements.
@@ -251,7 +250,7 @@ export class PullRequestToolkit {
     }
 
     private getLastIteration(iteration: IterationField): Iteration | undefined {
-        if (!iteration.configuration.iterations) return undefined;
+        if (!iteration.configuration.iterations || iteration.configuration.iterations.length === 0) return undefined;
         const lastIteration = iteration.configuration.iterations.reduce((latest, current) => {
             const latestEndDate = new Date(
                 new Date(latest.start_date).getTime() + latest.duration * 24 * 60 * 60 * 1000,
@@ -360,8 +359,9 @@ export class PullRequestToolkit {
         }
 
         await this.ensureCurrentSprintInProject(projectNumber);
+        const updatedSprintField = await this.getSprintFieldForProject(projectNumber);
 
-        const currentSprint = this.getCurrentIteration(sprintField);
+        const currentSprint = this.getCurrentIteration(updatedSprintField!);
         if (!currentSprint) {
             throw new UserError(
                 `Project ${projectNumber} does not have a current sprint iteration. Create one first in project settings.`,
@@ -371,7 +371,7 @@ export class PullRequestToolkit {
         await this.setSprintForProjectItem(
             projectNodeId,
             projectItemReferenceId,
-            sprintField.node_id!,
+            updatedSprintField!.node_id!,
             currentSprint.id,
         );
         this.core.info(`Pull request added to current sprint "${currentSprint.title.raw}"`);
@@ -543,27 +543,37 @@ export class PullRequestToolkit {
         );
 
         // Keep only issues, filter out pull requests
-        const mentionedIssues = asyncFilter(mentions, async (mention) => {
-            let issue;
-            try {
-                issue = await this.githubModel.getIssue(mention.owner, mention.repo, mention.number);
-            } catch (error) {
-                // Like GitHub, ignore references to missing (404) or deleted (410) issues, or ones we can't access
-                if (![404, 410].includes((error as { status?: number }).status!)) throw error;
-                this.core.warning(
-                    `${mention.owner}/${mention.repo}#${mention.number} mentioned in the pull request body was not found.`,
-                );
-                return false;
-            }
-            if (issue.pull_request) {
+        const mentionsWithIssues = (
+            await Promise.all(
+                mentions.map(async (mention) => {
+                    try {
+                        const issue = await this.githubModel.getIssue(mention.owner, mention.repo, mention.number);
+                        return {
+                            ...mention,
+                            state: issue.state,
+                            isPullRequest: !!issue.pull_request,
+                        };
+                    } catch (error) {
+                        // Like GitHub, ignore references to missing (404) or deleted (410) issues, or ones we can't access
+                        if (![404, 410].includes((error as { status?: number }).status!)) throw error;
+                        this.core.warning(
+                            `${mention.owner}/${mention.repo}#${mention.number} mentioned in the pull request body was not found.`,
+                        );
+                        return null;
+                    }
+                }),
+            )
+        ).filter((mention) => mention !== null);
+
+        return mentionsWithIssues.filter((mention) => {
+            if (mention.isPullRequest) {
                 this.core.warning(
                     `${mention.owner}/${mention.repo}#${mention.number} mentioned in the pull request body is also a pull request, not an issue.`,
                 );
+                return false;
             }
-            return !issue.pull_request;
+            return true;
         });
-
-        return mentionedIssues;
     }
 
     /**
@@ -628,6 +638,10 @@ export class PullRequestToolkit {
         if (issuesToClose.length === 0) return;
 
         for (const issue of issuesToClose) {
+            if (issue.state === 'closed') {
+                this.core.info(`Issue ${issue.owner}/${issue.repo}#${issue.number} is already closed. Skipping.`);
+                continue;
+            }
             await this.githubModel.closeIssueAsCompleted(issue.owner, issue.repo, issue.number);
         }
         this.core.info('Closed issues mentioned in the pull request body.');
@@ -636,7 +650,7 @@ export class PullRequestToolkit {
     /**
      * Gets the estimate value set on a project item, if any.
      */
-    private async getEstimateInProjectItems(projectItemId: string) {
+    private async getEstimateInProjectItem(projectItemId: string) {
         const fieldValues = await this.githubModel.getProjectItemFieldValues(projectItemId);
         const estimate = fieldValues[PROJECT_FIELD_NAMES.ESTIMATE] as
             | Extract<FieldValue, { dataType: 'NUMBER' }>
@@ -666,7 +680,7 @@ export class PullRequestToolkit {
             ).flat(),
         ];
         for (const projectItem of projectItems) {
-            const estimate = await this.getEstimateInProjectItems(projectItem.id);
+            const estimate = await this.getEstimateInProjectItem(projectItem.id);
             // `null` means the field isn't set; `0` is a valid estimate.
             if (estimate !== null) {
                 return true;

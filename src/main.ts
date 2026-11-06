@@ -48,7 +48,7 @@ export async function main({
         const orgOctokit = getOctokit(input['org-github-token'], { retry: { enabled: true }, request: { retries: 3 } });
 
         if (!input['apify-api-token']) throw new Error('Missing apify-api-token input!');
-        const gitHubControllerActorClient = new GitHubControllerActorClient(input['apify-api-token'] ?? '');
+        const gitHubControllerActorClient = new GitHubControllerActorClient(input['apify-api-token']);
 
         const githubModel = new GitHubModel(orgOctokit, gitHubControllerActorClient);
         const pullRequestToolkit = new PullRequestToolkit(
