@@ -154,7 +154,8 @@ export async function main({
 
         // Adds the pull request to the team project if it exists,
         // sets the status field to "Pull Request",
-        // and assigns it to the current sprint if the project has a sprint field.
+        // assigns it to the current sprint if the project has a sprint field,
+        // and sets the estimate if specified in the pull request body.
         const project = await pullRequestToolkit.findProjectForTeam(teamName);
         if (project) {
             core.info(`Team ${teamName} has a GitHub Project: ${project.title} (ID: ${project.id})`);
@@ -190,6 +191,12 @@ export async function main({
             );
 
             await pullRequestToolkit.maybeAssignProjectItemToCurrentSprint(
+                project.number,
+                project.node_id,
+                projectItemReference.id,
+            );
+
+            await pullRequestToolkit.maybeSetEstimateFromPullRequestBody(
                 project.number,
                 project.node_id,
                 projectItemReference.id,

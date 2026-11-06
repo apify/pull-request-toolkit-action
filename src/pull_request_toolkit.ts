@@ -17,6 +17,7 @@ import type {
     IssueOrPullRequestSpec,
     Iteration,
     IterationField,
+    NumberField,
     SingleSelectField,
 } from './types.ts';
 
@@ -648,6 +649,16 @@ export class PullRequestToolkit {
     }
 
     /**
+     * Finds the estimate field on the given project.
+     */
+    private async getEstimateFieldForProject(projectNumber: number): Promise<NumberField | undefined> {
+        const fields = await this.githubModel.getProjectFields(this.pullRequestRepoOwner, projectNumber);
+        return fields.find((field) => field.name === PROJECT_FIELD_NAMES.ESTIMATE && field.data_type === 'number') as
+            | NumberField
+            | undefined;
+    }
+
+    /**
      * Gets the estimate value set on a project item, if any.
      */
     private async getEstimateInProjectItem(projectItemId: string) {
@@ -659,6 +670,71 @@ export class PullRequestToolkit {
             return estimate.value;
         }
         return null;
+    }
+
+    /**
+     * Sets the estimate value on a project item.
+     */
+    private async setEstimateInProjectItem(
+        projectNodeId: string,
+        projectItemId: string,
+        estimateFieldNodeId: string,
+        estimate: number,
+    ): Promise<void> {
+        await this.githubModel.setProjectItemNumberFieldValue(
+            projectNodeId,
+            projectItemId,
+            estimateFieldNodeId,
+            estimate,
+        );
+    }
+
+    /**
+     * Sets the estimate on a project item based on the value specified in the pull request body.
+     */
+    public async maybeSetEstimateFromPullRequestBody(
+        projectNumber: number,
+        projectNodeId: string,
+        projectItemId: string,
+    ): Promise<void> {
+        const estimateField = await this.getEstimateFieldForProject(projectNumber);
+        if (!estimateField) {
+            this.core.warning('The project does not have an estimate field.');
+            return;
+        }
+
+        const currentEstimate = await this.getEstimateInProjectItem(projectItemId);
+        if (currentEstimate !== null) {
+            this.core.info(`The project item already has an estimate of ${currentEstimate}.`);
+            return;
+        }
+
+        const pullRequest = await this.getPullRequest();
+        const body = pullRequest.body ?? '';
+        const estimateRegexp = /(^|(\r?\n)+)(estimate|est)\s*:\s*(?<value>\d+)((\r?\n)+|$)/gi;
+        const match = estimateRegexp.exec(body);
+        if (!match) {
+            this.core.info('No estimate found in the pull request body.');
+            return;
+        }
+
+        const estimate = Number(match.groups?.value);
+        if (!Number.isSafeInteger(estimate) || estimate < 0) {
+            this.core.warning('The estimate in the pull request body is not a valid number.');
+            return;
+        }
+
+        await this.setEstimateInProjectItem(projectNodeId, projectItemId, estimateField.node_id!, estimate);
+
+        const updatedBody = body.replace(estimateRegexp, '\n\n').trim();
+        await this.githubModel.setPullRequestBody(
+            this.pullRequestRepoOwner,
+            this.pullRequestRepoName,
+            this.pullRequestNumber,
+            updatedBody,
+        );
+
+        this.core.info(`Set the pull request estimate to ${estimate} based on the pull request body.`);
     }
 
     /**

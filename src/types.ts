@@ -19,6 +19,10 @@ export type IterationField = ProjectField & {
     options: undefined;
 };
 export type Iteration = NonNullable<IterationField['configuration']['iterations']>[0];
+export type NumberField = ProjectField & {
+    configuration: undefined;
+    options: undefined;
+};
 
 export type FieldValue =
     | { id: string; dataType: 'DATE'; value: string }
