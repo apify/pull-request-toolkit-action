@@ -9,6 +9,7 @@ This action automates a couple of processes connected with the management of Git
 - Assigns a team label (`t-[teamName]`) to the pull request if not present.
 - Assigns the pull request to the project board of the team that the pull request creator belongs to.
 - Assigns the pull request to the current sprint of that board if the team uses sprints.
+- Sets the estimate for the pull request in the project based on the value specified in the pull request body ("estimate: N" or "est: N" on a separate line)
 - Makes sure that:
   - the pull request is either linked with an epic or an issue or labeled as `adhoc`
   - the pull request itself or linked issue is estimated
