@@ -120,6 +120,18 @@ export class GitHubModel {
     }
 
     /**
+     * Sets the body of a pull request.
+     */
+    public async setPullRequestBody(owner: string, repo: string, number: number, body: string) {
+        return await this.octokit.rest.pulls.update({
+            owner,
+            repo,
+            pull_number: number,
+            body,
+        });
+    }
+
+    /**
      * Fetches the issues that GitHub natively recognizes as being closed by the pull request.
      */
     public async getNativelyLinkedIssuesForPullRequest(
@@ -552,6 +564,32 @@ export class GitHubModel {
                 }
             }`,
             { projectId: projectNodeId, itemId, singleSelectFieldId, optionId },
+        );
+    }
+
+    /**
+     * Sets a number field of a project item to the given value.
+     */
+    public async setProjectItemNumberFieldValue(
+        projectNodeId: string,
+        itemId: string,
+        numberFieldId: string,
+        value: number,
+    ) {
+        await this.octokit.graphql(
+            `mutation setNumber($projectId: ID!, $itemId: ID!, $numberFieldId: ID!, $value: Float!) {
+                updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $numberFieldId,
+                    value: { number: $value }
+                }) {
+                    projectV2Item {
+                        id
+                    }
+                }
+            }`,
+            { projectId: projectNodeId, itemId, numberFieldId, value },
         );
     }
 
